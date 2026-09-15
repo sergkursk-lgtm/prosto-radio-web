@@ -40,6 +40,13 @@ const store = {
   set lastPlayed(v) { localStorage.setItem('lastPlayed', v); },
   get volume() { return Number(localStorage.getItem('volume') ?? 1); },
   set volume(v) { localStorage.setItem('volume', String(v)); },
+  /*
+    Помним, что прямой адрес не работает и нужен прокси. Без этой памяти каждая
+    станция заново ждала бы таймаут, прежде чем уйти на рабочий маршрут: на
+    мобильной сети оператор режет нестандартные порты, и прямой адрес молчит.
+  */
+  get preferProxy() { return localStorage.getItem('preferProxy') === '1'; },
+  set preferProxy(v) { localStorage.setItem('preferProxy', v ? '1' : '0'); },
 };
 
 const el = (id) => document.getElementById(id);
@@ -126,19 +133,31 @@ function proxiedUrl(u) {
  */
 function streamCandidates(s) {
   const out = [];
-  const push = (u) => { if (u && !out.includes(u)) out.push(u); };
+  const seen = new Set();
+  const push = (u, viaProxy) => {
+    if (!u || seen.has(u)) return;
+    seen.add(u);
+    out.push({ url: u, viaProxy: !!viaProxy });
+  };
 
-  const direct = directUrl(s);
-  push(direct);
-  push(proxiedUrl(direct));
+  // Порядок зависит от того, что уже сработало: если прямой адрес подводил,
+  // начинаем с прокси, иначе каждая станция снова ждала бы таймаут впустую.
+  const add = (station) => {
+    const direct = directUrl(station);
+    const throughProxy = proxiedUrl(direct);
+    if (store.preferProxy && throughProxy) {
+      push(throughProxy, true);
+      push(direct, false);
+    } else {
+      push(direct, false);
+      push(throughProxy, true);
+    }
+  };
 
   if (s) {
+    add(s);
     const twins = all.filter((x) => x.name === s.name && idOf(x) !== idOf(s));
-    for (const t of twins.slice(0, 3)) {
-      const u = directUrl(t);
-      push(u);
-      push(proxiedUrl(u));
-    }
+    for (const t of twins.slice(0, 3)) add(t);
   }
   return out;
 }
@@ -402,10 +421,10 @@ let streamError = '';
 let candidateTimer = 0;
 
 function loadCandidate() {
-  const u = candidates[candidateIndex];
-  if (!u) return;
+  const c = candidates[candidateIndex];
+  if (!c) return;
   streamError = '';
-  audio.src = u;
+  audio.src = c.url;
   audio.volume = store.volume;
   audio.play().catch((err) => {
     // Автовоспроизведение запрещено до первого касания — это нормально для Safari
@@ -423,13 +442,26 @@ function loadCandidate() {
   candidateTimer = setTimeout(() => {
     if (audio.readyState >= 2) return;          // поток уже отдаёт данные
     if (candidateIndex < candidates.length - 1) {
-      candidateIndex += 1;
-      loadCandidate();
+      advanceCandidate();
     } else if (!streamError) {
       streamError = diagnoseStreamError(current, 4);
       renderPlayer();
     }
   }, 10000);
+}
+
+/**
+ * Переход к следующему адресу. Заодно запоминаем, какой маршрут работает:
+ * уход с прямого адреса на прокси означает, что прямой блокируется, а провал
+ * самого прокси означает, что прокси не помощник — тогда возвращаемся к прямому.
+ */
+function advanceCandidate() {
+  const cur = candidates[candidateIndex];
+  const next = candidates[candidateIndex + 1];
+  if (cur && cur.viaProxy) store.preferProxy = false;
+  if (next && next.viaProxy) store.preferProxy = true;
+  candidateIndex += 1;
+  loadCandidate();
 }
 
 function playStation(s, newQueue) {
@@ -618,7 +650,7 @@ async function boot() {
       // переключится на следующий (прокси, другая запись каталога).
       candidates = streamCandidates(s);
       candidateIndex = 0;
-      if (candidates[0]) audio.src = candidates[0];
+      if (candidates[0]) audio.src = candidates[0].url;
       el('status').textContent = 'Нажмите ▶, чтобы продолжить';
       renderPlayer();
     }
@@ -640,8 +672,7 @@ audio.addEventListener('playing', () => {
 audio.addEventListener('error', () => {
   // Сначала молча пробуем следующий адрес: редирект, прокси, другая запись каталога
   if (candidateIndex < candidates.length - 1) {
-    candidateIndex += 1;
-    loadCandidate();
+    advanceCandidate();
     return;
   }
   streamError = diagnoseStreamError(current, audio.error?.code);

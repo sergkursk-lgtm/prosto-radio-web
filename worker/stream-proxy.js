@@ -11,12 +11,21 @@
  *   3. скопировать адрес вида https://имя.пользователь.workers.dev
  *   4. в app.js заменить функцию streamUrl на вариант из README
  *
- * Безопасность: воркер намеренно не является открытым релеем. Он принимает только
- * http-адреса (https-потоки идут напрямую), отказывается ходить в локальную сеть
- * и в служебные диапазоны, и не следует за перенаправлениями на другие адреса.
+ * Безопасность: воркер намеренно не является открытым релеем. Он отказывается
+ * ходить в локальную сеть и в служебные диапазоны и сам проверяет каждое
+ * перенаправление, прежде чем за ним идти.
  */
 
-const ALLOWED_SCHEME = 'http:';
+/*
+  Принимаем и http, и https.
+
+  Изначально здесь стоял только http — считалось, что https-потоки клиент играет
+  напрямую. Это неверно: часть станций вещает по https на нестандартных портах
+  («Маруся ФМ» — 8000 и 9433), а мобильные операторы такие порты режут. Смысл
+  прокси не в смене схемы, а в смене маршрута: клиент идёт на workers.dev по 443,
+  а за потоком воркер отправляется со своей стороны.
+*/
+const ALLOWED_SCHEMES = new Set(['http:', 'https:']);
 const MAX_REDIRECTS = 3;
 const TIMEOUT_MS = 20000;
 
@@ -62,9 +71,8 @@ export default {
       return bad('Некорректный адрес потока');
     }
 
-    // https-потоки в прокси не нуждаются — клиент играет их напрямую
-    if (streamUrl.protocol !== ALLOWED_SCHEME) {
-      return bad('Прокси принимает только http-адреса');
+    if (!ALLOWED_SCHEMES.has(streamUrl.protocol)) {
+      return bad('Прокси принимает только http и https');
     }
     if (isPrivateHost(streamUrl.hostname)) {
       return bad('Адрес вне допустимого диапазона', 403);
@@ -88,7 +96,7 @@ export default {
         const location = upstream.headers.get('location');
         if (!location) return bad('Станция перенаправила в никуда', 502);
         const next = new URL(location, streamUrl);
-        if (next.protocol !== ALLOWED_SCHEME || isPrivateHost(next.hostname)) {
+        if (!ALLOWED_SCHEMES.has(next.protocol) || isPrivateHost(next.hostname)) {
           return bad('Перенаправление на недопустимый адрес', 403);
         }
         return Response.redirect(`${url.origin}${url.pathname}?url=${encodeURIComponent(next)}`, 302);
