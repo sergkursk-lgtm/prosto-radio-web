@@ -703,12 +703,30 @@ audio.addEventListener('playing', () => {
   if (c) rememberGoodRoute(current, c.url);
 });
 audio.addEventListener('error', () => {
-  // Сначала молча пробуем следующий адрес: редирект, прокси, другая запись каталога
+  const code = audio.error?.code;
+
+  /*
+    Не всякое событие error означает, что станция недоступна.
+
+    При переключении станции браузер сворачивает предыдущую загрузку, и её ошибка
+    долетает уже после установки нового адреса — в этот момент audio.error пуст
+    (code == null). Код 1 (MEDIA_ERR_ABORTED) — то же самое: загрузку прервали мы
+    сами, переключившись.
+
+    Если принимать такие события за отказ, только что выбранная станция ни за что
+    уходит на запасной адрес. Проверено на живом сайте: «РАДИО ВАНЯ» с полностью
+    рабочим прямым адресом (3 ответа HTTP 200 из 3) уезжала в Cloudflare через
+    87 мс после клика. Настоящий отказ всегда несёт код: 2 — сеть, 3 — декод,
+    4 — формат или блокировка. Их и обрабатываем.
+  */
+  if (code == null || code === 1) return;
+
+  // Молча пробуем следующий адрес: другая запись каталога, затем прокси
   if (candidateIndex < candidates.length - 1) {
     advanceCandidate();
     return;
   }
-  streamError = diagnoseStreamError(current, audio.error?.code);
+  streamError = diagnoseStreamError(current, code);
   renderPlayer();
   if (candidates.length > 1) console.warn('источники исчерпаны:', candidates);
 });
