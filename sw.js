@@ -6,7 +6,7 @@
   это живые потоки, и попытка их сохранить только мешает.
 */
 
-const VERSION = 'prosto-radio-v2.8-ui10';
+const VERSION = 'prosto-radio-v2.9-ui11';
 const SHELL = [
   './',
   'index.html',

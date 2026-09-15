@@ -132,41 +132,50 @@ function proxiedUrl(u) {
  * (это разные хосты той же станции и часто единственный работающий вариант).
  */
 function streamCandidates(s) {
-  const out = [];
+  if (!s) return [];
   const seen = new Set();
+  const out = [];
   const push = (u, viaProxy) => {
     if (!u || seen.has(u)) return;
     seen.add(u);
     out.push({ url: u, viaProxy: !!viaProxy });
   };
 
-  // Порядок зависит от того, что уже сработало: если прямой адрес подводил,
-  // начинаем с прокси, иначе каждая станция снова ждала бы таймаут впустую.
-  const add = (station) => {
+  const twins = all.filter((x) => x.name === s.name && idOf(x) !== idOf(s)).slice(0, 3);
+  const entries = [s, ...twins].map((station) => {
     const raw = station.url_resolved || station.url || '';
-    const direct = directUrl(station);
-    /*
-      В прокси уходит ИСХОДНЫЙ адрес, а не переписанный.
-      На https-странице directUrl повышает http → https, но воркер должен идти
-      за настоящим потоком: у 57% станций TLS на их порту не поднят, и запрос
-      к https-версии просто не откроется. Это не видно при локальной отладке по
-      http — там адрес не переписывается, и оба варианта совпадают.
-    */
-    const throughProxy = proxiedUrl(raw);
-    if (store.preferProxy && throughProxy) {
-      push(throughProxy, true);
-      push(direct, false);
-    } else {
-      push(direct, false);
-      push(throughProxy, true);
-    }
-  };
+    return {
+      direct: directUrl(station),
+      /*
+        В прокси уходит ИСХОДНЫЙ адрес, а не переписанный. На https-странице
+        directUrl повышает http → https, но воркер должен идти за настоящим
+        потоком: у 57% станций TLS на их порту не поднят.
+      */
+      proxied: proxiedUrl(raw),
+      // http-поток на https-странице браузер заблокирует, прямой адрес бессмысленен
+      blockedDirect: location.protocol === 'https:' && /^http:\/\//i.test(raw),
+    };
+  });
 
-  if (s) {
-    add(s);
-    const twins = all.filter((x) => x.name === s.name && idOf(x) !== idOf(s));
-    for (const t of twins.slice(0, 3)) add(t);
+  if (store.preferProxy) {
+    // Прямой маршрут уже подводил — начинаем с прокси, прямой держим запасным
+    for (const e of entries) push(e.proxied, true);
+    for (const e of entries) push(e.direct, false);
+    return out;
   }
+
+  /*
+    Сначала ВСЕ прямые адреса, потом все через прокси.
+
+    Раньше адреса шли парами «прямой, прокси» на каждую запись каталога, и это
+    оказалось худшим порядком: у «Маруси ФМ» первый хост не отвечает вообще,
+    а второй отдаёт поток почти мгновенно. Парами приложение ждало мёртвый хост,
+    потом долго ждало прокси к нему же — и только затем доходило до рабочего
+    второго адреса. Пятнадцать секунд вместо трёх.
+  */
+  for (const e of entries) if (!e.blockedDirect) push(e.direct, false);
+  for (const e of entries) push(e.proxied, true);
+
   return out;
 }
 
