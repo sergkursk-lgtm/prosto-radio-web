@@ -93,10 +93,77 @@ const idOf = (s) => s.stationuuid || s.url_resolved;
  * подключиться. Поэтому на защищённой странице пробуем тот же адрес по https — многие
  * вещатели поддерживают оба протокола. На http-странице отдаём адрес как есть.
  */
-function streamUrl(s) {
-  const raw = s.url_resolved;
+/*
+  Адрес прокси-воркера (см. worker/stream-proxy.js и раздел «Прокси потоков»
+  в README). Пустая строка — приложение работает напрямую, как раньше.
+
+  Зачем прокси. 57% станций вещают по http, а браузер блокирует http-аудио на
+  https-странице. Но и https-поток может не открыться: «Маруся ФМ» вещает на
+  портах 8000 и 9433, а мобильные операторы нестандартные порты режут — по Wi-Fi
+  та же станция играет, в мобильной сети нет. Воркер ходит за потоком со своей
+  стороны и отдаёт его клиенту по 443, поэтому блокировка порта перестаёт мешать.
+*/
+const PROXY_BASE = '';
+
+/** Адрес потока как есть, с повышением http → https на защищённой странице. */
+function directUrl(s) {
+  const raw = s.url_resolved || s.url || '';
   if (location.protocol !== 'https:') return raw;
   return raw.startsWith('http://') ? raw.replace(/^http:/, 'https:') : raw;
+}
+
+function proxiedUrl(u) {
+  return PROXY_BASE && u ? PROXY_BASE + '?url=' + encodeURIComponent(u) : null;
+}
+
+/**
+ * Очередь адресов для станции — по порядку предпочтения.
+ *
+ * Одного адреса мало: вещатели отдают редиректы на другие хосты и порты, а
+ * операторы связи режут нестандартные порты. Поэтому пробуем по очереди —
+ * напрямую, затем через прокси, затем другие записи каталога с тем же названием
+ * (это разные хосты той же станции и часто единственный работающий вариант).
+ */
+function streamCandidates(s) {
+  const out = [];
+  const push = (u) => { if (u && !out.includes(u)) out.push(u); };
+
+  const direct = directUrl(s);
+  push(direct);
+  push(proxiedUrl(direct));
+
+  if (s) {
+    const twins = all.filter((x) => x.name === s.name && idOf(x) !== idOf(s));
+    for (const t of twins.slice(0, 3)) {
+      const u = directUrl(t);
+      push(u);
+      push(proxiedUrl(u));
+    }
+  }
+  return out;
+}
+
+/**
+ * Честная причина вместо прежнего «недоступна по защищённому соединению»,
+ * которое выводилось при любой ошибке на https и уводило диагностику в сторону.
+ */
+function diagnoseStreamError(s, code) {
+  const raw = (s && (s.url_resolved || s.url)) || '';
+  let port = '';
+  try { port = new URL(directUrl(s)).port; } catch { port = ''; }
+  const oddPort = !!port && port !== '443' && port !== '80';
+
+  if (code === 2) return 'Нет связи с потоком — проверьте сеть';
+  if (code === 3) return 'Поток повреждён';
+  if (code === 4) {
+    if (location.protocol === 'https:' && /^http:\/\//i.test(raw) && !PROXY_BASE) {
+      return 'Станция вещает по http, а страница защищена — нужен прокси';
+    }
+    if (oddPort) return `Поток не открылся (порт ${port}) — возможно, оператор его блокирует`;
+    return 'Формат потока не поддерживается браузером';
+  }
+  if (code === 1) return 'Загрузка потока прервана';
+  return 'Станция недоступна';
 }
 
 function matches(s, text, tag) {
@@ -263,8 +330,8 @@ function renderPlayer() {
   el('next').disabled = !canSkip;
 
   // Состояние эфира показывает строка «В ЭФИРЕ» у полосы — здесь его не дублируем.
-  // Эта строка остаётся для паузы и для ошибок потока.
-  el('status').textContent = audio.paused ? (current ? 'Пауза' : '') : '';
+  // Ошибка потока важнее состояния паузы: она объясняет, почему тишина.
+  el('status').textContent = streamError || (audio.paused ? (current ? 'Пауза' : '') : '');
 
   // Полоса без бегунка: у живого потока нет длительности и перемотки
   el('air-track').classList.toggle('playing', !audio.paused && !!current);
@@ -323,18 +390,56 @@ function tapStation(s) {
   playStation(s, list);
 }
 
-function playStation(s, newQueue) {
-  current = s;
-  queue = newQueue && newQueue.length ? newQueue : [s];
-  store.lastPlayed = idOf(s);
+let candidates = [];
+let candidateIndex = 0;
+/*
+  Текст ошибки потока хранится отдельно от DOM. Причина: обрыв потока вызывает
+  событие pause, а его обработчик зовёт renderPlayer(), который переписывал
+  строку состояния словом «Пауза» — и объяснение причины до пользователя
+  не доходило.
+*/
+let streamError = '';
+let candidateTimer = 0;
 
-  audio.src = streamUrl(s);
+function loadCandidate() {
+  const u = candidates[candidateIndex];
+  if (!u) return;
+  streamError = '';
+  audio.src = u;
   audio.volume = store.volume;
   audio.play().catch((err) => {
     // Автовоспроизведение запрещено до первого касания — это нормально для Safari
     el('status').textContent = 'Нажмите ▶, чтобы начать';
     console.warn('play() отклонён:', err?.message);
   });
+
+  /*
+    Страховка от «чёрной дыры»: если оператор связи не отказывает в соединении,
+    а молча глотает пакеты, событие error не придёт и перебор источников никогда
+    не начнётся — пользователь останется на «Подключение…» навсегда. Поэтому
+    через 10 секунд без данных идём к следующему адресу.
+  */
+  clearTimeout(candidateTimer);
+  candidateTimer = setTimeout(() => {
+    if (audio.readyState >= 2) return;          // поток уже отдаёт данные
+    if (candidateIndex < candidates.length - 1) {
+      candidateIndex += 1;
+      loadCandidate();
+    } else if (!streamError) {
+      streamError = diagnoseStreamError(current, 4);
+      renderPlayer();
+    }
+  }, 10000);
+}
+
+function playStation(s, newQueue) {
+  current = s;
+  queue = newQueue && newQueue.length ? newQueue : [s];
+  store.lastPlayed = idOf(s);
+
+  candidates = streamCandidates(s);
+  candidateIndex = 0;
+  loadCandidate();
 
   render();
   renderPlayer();
@@ -343,8 +448,11 @@ function playStation(s, newQueue) {
 
 function togglePlay() {
   if (!current) return;
-  if (audio.paused) audio.play().catch(() => {});
-  else audio.pause();
+  if (audio.paused) {
+    // Поток мог отвалиться целиком — тогда начинаем перебор источников заново
+    if (audio.error) { candidateIndex = 0; loadCandidate(); }
+    else audio.play().catch(() => {});
+  } else audio.pause();
 }
 
 function step(delta) {
@@ -505,7 +613,12 @@ async function boot() {
       // Очередь — весь каталог, а не одна станция: иначе кнопки ⏮ ⏭ остаются
       // заблокированными до тех пор, пока не выберешь другую станцию.
       queue = all;
-      audio.src = streamUrl(s);        // без play(): Safari не даст звук без касания
+      // Готовим поток, но не запускаем: Safari не даст звук без касания.
+      // Берём первый адрес цепочки; если он не откроется, обработчик error
+      // переключится на следующий (прокси, другая запись каталога).
+      candidates = streamCandidates(s);
+      candidateIndex = 0;
+      if (candidates[0]) audio.src = candidates[0];
       el('status').textContent = 'Нажмите ▶, чтобы продолжить';
       renderPlayer();
     }
@@ -519,11 +632,21 @@ audio.addEventListener('pause', () => { render(); renderPlayer(); updateMediaSes
 audio.addEventListener('waiting', () => { el('status').textContent = 'Подключение…'; });
 // Строка «В ЭФИРЕ» у полосы уже показывает состояние, поэтому здесь только
 // снимаем служебные сообщения («Подключение…», «Нажмите ▶…»), а не дублируем его.
-audio.addEventListener('playing', () => { el('status').textContent = ''; });
+audio.addEventListener('playing', () => {
+  clearTimeout(candidateTimer);
+  streamError = '';
+  el('status').textContent = '';
+});
 audio.addEventListener('error', () => {
-  el('status').textContent = location.protocol === 'https:'
-    ? 'Станция недоступна по защищённому соединению'
-    : 'Станция недоступна';
+  // Сначала молча пробуем следующий адрес: редирект, прокси, другая запись каталога
+  if (candidateIndex < candidates.length - 1) {
+    candidateIndex += 1;
+    loadCandidate();
+    return;
+  }
+  streamError = diagnoseStreamError(current, audio.error?.code);
+  renderPlayer();
+  if (candidates.length > 1) console.warn('источники исчерпаны:', candidates);
 });
 // Поток оборвался — пробуем возобновить, как это делает Android-версия
 audio.addEventListener('stalled', () => { setTimeout(() => audio.play().catch(() => {}), 1500); });
