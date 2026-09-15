@@ -1,244 +1,211 @@
 /*
-  Оформление повторяет Android-приложение: те же цвета из его темы, объёмные кнопки
-  с градиентом и цветной тенью, компактный шрифт.
+  Оформление «Modern Dark Radio» — то же, что в Android-приложении.
 
-  Раскладка одна и та же в разметке, а ориентация меняет её через медиазапрос:
-  в портрете плеер — полоса внизу, в ландшафте — колонка справа.
+  Палитра, роли цветов, скругления и типографика повторяют его тему: тёмная основа,
+  три уровня поверхностей и один яркий акцент. Светлая тема построена на тех же ролях,
+  но акценты затемнены — голубой #4DA3FF на белом не даёт нужного контраста.
+
+  Раскладка одна: в портрете плеер идёт плавающей карточкой внизу, в ландшафте — колонкой справа.
 */
 :root{
-  --primary:#5B45E0;
-  --bg:#F7F6FC;
-  --surface:#FFFFFF;
-  --surface-variant:#E7E4F0;
-  --on-surface:#1B1B22;
-  --on-surface-variant:#48454F;
-  --outline:#797580;
-  --radius:22px;
+  --ink-900:#0B0D12; --ink-800:#12151C; --ink-700:#191D27; --ink-600:#232838;
+  --blue:#4DA3FF; --blue-on:#04121F; --blue-container:#16283D;
+  --green:#35D07F;
+  --text:#ECEFF4; --text-dim:#98A2B3;
+
+  --page:var(--ink-900);
+  --surface:var(--ink-800);
+  --raised:var(--ink-700);
+  --outline:var(--ink-600);
+  --cover:#191D27;
+  --shadow:0 10px 30px rgb(0 0 0 / .45);
+
+  --r-card:20px; --r-panel:26px; --r-art:16px; --pill:999px;
+}
+
+/* Светлая тема: те же роли, другие значения */
+@media (prefers-color-scheme: light){
+  :root{
+    --page:#F4F6FB; --surface:#FFFFFF; --raised:#FFFFFF;
+    --outline:#EAEEF6; --cover:#EAEEF6;
+    --blue:#1F6FE0; --blue-on:#FFFFFF; --blue-container:#D8E8FF;
+    --green:#0E9E58;
+    --text:#0E1117; --text-dim:#5B6472;
+    --shadow:0 8px 24px rgb(15 23 42 / .10);
+  }
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
-
 html,body{height:100%}
 body{
-  background:var(--bg);
-  color:var(--on-surface);
+  background:var(--page);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  font-size:15px;
-  /* Тёмная тема системы — как в приложении */
+  font-size:15px;-webkit-font-smoothing:antialiased;
 }
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#121016; --surface:#1C1A22; --surface-variant:#3A3845;
-    --on-surface:#E5E1E9; --on-surface-variant:#C8C4D0; --outline:#928F9C;
-  }
-}
-
 #app{
-  display:flex;
-  flex-direction:column;
-  height:100%;
-  height:100dvh;             /* iOS: иначе адресная строка съедает высоту */
-  overflow:hidden;
+  display:flex;flex-direction:column;height:100%;height:100dvh;overflow:hidden;
 }
 
-/* ---------- левая колонка: список ---------- */
+/* ---------- колонка списка ---------- */
 .list-pane{
   flex:1 1 auto;
-  /* Без min-width флекс не даёт колонке сжаться: ряд чипов с прокруткой
-     распирает её до полной ширины содержимого, и в ландшафте список уезжает за экран. */
-  min-width:0;
-  min-height:0;
-  display:flex;
-  flex-direction:column;
+  /* Без min-width флекс не даёт колонке сжаться: ряд чипов распирает её
+     до ширины содержимого, и в ландшафте список уезжает за экран. */
+  min-width:0;min-height:0;
+  display:flex;flex-direction:column;
   padding:calc(10px + env(safe-area-inset-top)) 14px 0 18px;
 }
-
-.topbar{display:flex;align-items:center;gap:10px;flex:0 0 auto}
-.title{font-size:21px;font-weight:700;letter-spacing:-.3px}
+.topbar{display:flex;align-items:center;gap:10px;flex:0 0 auto;padding-bottom:4px}
+.title{font-size:24px;font-weight:600;letter-spacing:-.4px}
 .tabs{margin-left:auto;display:flex;gap:8px}
 
-/* ---------- объёмная кнопка ---------- */
+/* ---------- кнопки: акцентная, приглушённая, прозрачная ---------- */
 .vol{
-  border:1px solid rgba(255,255,255,.25);
-  border-radius:50%;
-  width:40px;height:40px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:17px;
-  background:linear-gradient(160deg,#6E5AE8 0%,#5B45E0 55%,#4834C4 100%);
-  box-shadow:0 5px 12px rgba(91,69,224,.42), inset 0 2px 2px rgba(255,255,255,.32);
-  color:#fff;
-  cursor:pointer;
-  transition:transform .12s ease, box-shadow .12s ease;
+  border:0;border-radius:var(--pill);width:44px;height:44px;
+  display:flex;align-items:center;justify-content:center;font-size:17px;
+  background:var(--blue);color:var(--blue-on);cursor:pointer;
+  transition:background .18s ease,color .18s ease,transform .12s ease;
   -webkit-tap-highlight-color:transparent;
+  box-shadow:0 6px 18px rgb(77 163 255 / .30);
 }
-.vol:active{transform:translateY(2px) scale(.97);box-shadow:0 1px 3px rgba(91,69,224,.4), inset 0 2px 2px rgba(255,255,255,.32)}
-.vol.neutral{
-  background:linear-gradient(160deg,#F2F0F7 0%,#E7E4F0 55%,#DAD6E6 100%);
-  box-shadow:0 4px 10px rgba(72,69,79,.20), inset 0 2px 2px rgba(255,255,255,.9);
-  border-color:rgba(255,255,255,.7);
-  color:var(--on-surface-variant);
-}
-@media (prefers-color-scheme: dark){
-  .vol.neutral{
-    background:linear-gradient(160deg,#4E4B5A 0%,#45424F 55%,#3B3844 100%);
-    box-shadow:0 4px 10px rgba(0,0,0,.45), inset 0 2px 2px rgba(255,255,255,.10);
-    border-color:rgba(255,255,255,.10);
-    color:var(--on-surface-variant);
-  }
-}
-.vol.active{background:linear-gradient(160deg,#6E5AE8,#5B45E0 60%,#4834C4);color:#fff;
-  box-shadow:0 5px 12px rgba(91,69,224,.45), inset 0 2px 2px rgba(255,255,255,.3)}
-.vol.hero{width:58px;height:58px;font-size:23px}
-.vol:disabled{opacity:.45;cursor:default}
+.vol:active{transform:scale(.95)}
+.vol.neutral{background:var(--raised);color:var(--text-dim);box-shadow:none}
+.vol.active{background:var(--blue-container);color:var(--blue);box-shadow:none}
+.vol.hero{width:64px;height:64px;font-size:26px;box-shadow:0 10px 26px rgb(77 163 255 / .38)}
+.vol:disabled{opacity:.4;cursor:default}
 .vol:disabled:active{transform:none}
 
 /* ---------- поиск ---------- */
 .search{
-  flex:0 0 auto;
-  margin-top:12px;
-  height:48px;
-  border-radius:16px;
-  background:var(--surface);
-  border:1px solid rgba(121,117,128,.15);
-  box-shadow:0 4px 12px rgba(91,69,224,.08);
-  display:flex;align-items:center;gap:12px;padding:0 16px;
+  flex:0 0 auto;margin-top:10px;height:50px;border-radius:var(--pill);
+  background:var(--surface);display:flex;align-items:center;gap:12px;padding:0 16px;
 }
-.search-ico{font-size:17px;opacity:.6}
+.search-ico{font-size:17px;opacity:.75}
 .search input{
-  border:0;outline:0;background:transparent;flex:1;
-  font-size:16px;color:var(--on-surface);
+  border:0;outline:0;background:transparent;flex:1;font-size:16px;color:var(--text);
   /* 16px обязателен: при меньшем iOS зумит страницу при фокусе */
 }
-.search input::placeholder{color:var(--outline)}
+.search input::placeholder{color:var(--text-dim)}
 
 /* ---------- чипы ---------- */
 .chips{
-  flex:0 0 auto;
-  display:flex;gap:9px;
-  margin:12px 0 6px;
-  padding-bottom:6px;      /* место под тень: без него низ кнопок срезается */
-  overflow-x:auto;
-  scrollbar-width:none;
+  flex:0 0 auto;display:flex;gap:8px;margin:12px 0 6px;padding-bottom:4px;
+  overflow-x:auto;scrollbar-width:none;
 }
 .chips::-webkit-scrollbar{display:none}
 .chip{
-  flex:0 0 auto;
-  height:36px;padding:0 17px;border-radius:18px;
-  display:flex;align-items:center;
-  font-size:14px;
-  background:linear-gradient(160deg,#F2F0F7,#E7E4F0);
-  color:var(--on-surface-variant);
-  border:1px solid rgba(255,255,255,.7);
-  box-shadow:0 3px 8px rgba(72,69,79,.16), inset 0 2px 2px rgba(255,255,255,.9);
-  cursor:pointer;white-space:nowrap;
+  flex:0 0 auto;height:38px;padding:0 18px;border-radius:var(--pill);
+  display:flex;align-items:center;font-size:14.5px;font-weight:500;
+  background:var(--raised);color:var(--text-dim);border:0;cursor:pointer;white-space:nowrap;
+  transition:background .18s ease,color .18s ease;
   -webkit-tap-highlight-color:transparent;
 }
-@media (prefers-color-scheme: dark){
-  .chip{background:linear-gradient(160deg,#4E4B5A,#3B3844);border-color:rgba(255,255,255,.1);
-        box-shadow:0 3px 8px rgba(0,0,0,.4), inset 0 2px 2px rgba(255,255,255,.08)}
-}
-.chip.on{background:linear-gradient(160deg,#6E5AE8,#5B45E0 60%,#4834C4);color:#fff;
-  border-color:rgba(255,255,255,.25);box-shadow:0 5px 12px rgba(91,69,224,.42)}
+.chip.on{background:var(--blue);color:var(--blue-on);font-weight:600}
 
-.count{flex:0 0 auto;text-align:right;font-size:12.5px;color:var(--on-surface-variant);margin-bottom:8px}
+.count{flex:0 0 auto;font-size:12.5px;color:var(--text-dim);margin:2px 0 8px}
 
 /* ---------- список ---------- */
 .list{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.row{
-  display:flex;align-items:center;gap:12px;
-  padding:10px 2px;
-  border-bottom:1px solid var(--surface-variant);
-}
+.row{display:flex;align-items:center;gap:12px;padding:9px 2px;cursor:pointer}
 .art{
-  flex:0 0 42px;width:42px;height:42px;border-radius:11px;
-  background:linear-gradient(160deg,#F2F0F7,#E2DEEC);
-  display:flex;align-items:center;justify-content:center;font-size:18px;
+  flex:0 0 48px;width:48px;height:48px;border-radius:var(--r-art);
+  background:var(--cover);display:flex;align-items:center;justify-content:center;
+  font-size:19px;overflow:hidden;
 }
-@media (prefers-color-scheme: dark){
-  .art{background:linear-gradient(160deg,#3A3845,#2A2833)}
-}
-.art img{width:100%;height:100%;object-fit:cover;border-radius:11px;display:block}
+.art img{width:100%;height:100%;object-fit:cover;display:block}
 .meta{flex:1;min-width:0}
-.name{font-size:15.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.name.now{color:var(--primary);font-weight:700}
-.sub{font-size:12.5px;color:var(--on-surface-variant);margin-top:2px;
-     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row .vol{width:36px;height:36px;font-size:15px;flex:0 0 36px}
-.row .vol.play{width:42px;height:42px;font-size:17px;flex:0 0 42px}
-.empty{padding:26px 4px;color:var(--on-surface-variant);font-size:14px;line-height:1.5}
+/* Название — главный объект строки */
+.name{font-size:16.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.name.now{color:var(--blue)}
+.sub{
+  font-size:13px;color:var(--text-dim);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.row .vol{width:40px;height:40px;font-size:17px;flex:0 0 40px}
+.row .vol.play{width:44px;height:44px;font-size:19px;flex:0 0 44px}
+.empty{padding:56px 24px;text-align:center;color:var(--text-dim);font-size:14px;line-height:1.55}
+.empty b{display:block;font-size:19px;font-weight:600;color:var(--text);margin-bottom:8px}
+
+.more{
+  display:block;width:100%;margin:14px 0 6px;padding:13px;
+  border:1px solid var(--outline);border-radius:var(--r-card);
+  background:var(--surface);color:var(--blue);font-size:14.5px;font-weight:600;cursor:pointer;
+}
+.more:active{transform:translateY(1px)}
 
 /* ---------- регион ---------- */
 .region-card{
-  flex:0 0 auto;margin-top:12px;background:var(--surface);border-radius:var(--radius);
-  padding:14px 16px;
-  box-shadow:0 4px 14px rgba(91,69,224,.10);
+  flex:0 0 auto;margin-top:10px;background:var(--surface);
+  border-radius:var(--r-panel);padding:16px;
 }
 .region-row{display:flex;align-items:center;gap:12px}
-.region-row + .region-row{margin-top:10px}
-.region-pin{width:38px;height:38px;border-radius:50%;background:var(--surface-variant);
-  display:flex;align-items:center;justify-content:center;font-size:18px}
-.region-name{font-size:16px;font-weight:600}
-.region-note{font-size:12.5px;color:var(--on-surface-variant);margin-top:2px}
-.region-edit{flex:0 0 38px}
+.region-row + .region-row{margin-top:12px}
+.region-pin{
+  width:44px;height:44px;border-radius:var(--pill);background:var(--raised);
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+}
+.region-name{font-size:16.5px;font-weight:600}
+.region-note{font-size:12.5px;color:var(--text-dim);margin-top:2px}
+.region-edit{flex:0 0 44px}
 #region-select{
-  flex:1;height:38px;border-radius:12px;border:1px solid var(--surface-variant);
-  background:var(--surface);color:var(--on-surface);font-size:15px;padding:0 10px;
+  flex:1;height:44px;border-radius:14px;border:1px solid var(--outline);
+  background:var(--surface);color:var(--text);font-size:15px;padding:0 12px;
 }
 
 /* ---------- плеер ---------- */
 .player-pane{
-  flex:0 0 auto;
-  background:var(--surface);
-  border-top:1px solid var(--surface-variant);
-  padding:10px 16px calc(10px + env(safe-area-inset-bottom));
-  display:flex;flex-direction:column;align-items:center;gap:8px;
+  flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom));
 }
 .player-pane .cover{
-  width:56px;height:56px;border-radius:14px;
-  background:linear-gradient(150deg,#8E7BF0,#5B45E0);
-  display:flex;align-items:center;justify-content:center;font-size:26px;
-  box-shadow:0 8px 20px rgba(91,69,224,.28);
-  overflow:hidden;
+  width:56px;height:56px;border-radius:18px;background:var(--cover);
+  display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;
 }
 .player-pane .cover img{width:100%;height:100%;object-fit:cover}
-.pname{font-size:16px;font-weight:700;text-align:center;
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.pmeta{font-size:12.5px;color:var(--on-surface-variant);text-align:center;
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.transport{display:flex;align-items:center;gap:12px}
+.pname{
+  font-size:16.5px;font-weight:600;text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+.pmeta{
+  font-size:13px;color:var(--text-dim);text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+.transport{display:flex;align-items:center;gap:14px}
 .volume{display:flex;align-items:center;gap:10px;width:100%}
-.volume input{flex:1;accent-color:var(--primary)}
-.vol-ico{font-size:15px;opacity:.7}
-.status{font-size:11.5px;color:var(--outline);min-height:14px}
+.volume input{flex:1;accent-color:var(--blue)}
+.vol-ico{font-size:15px;color:var(--text-dim)}
+.status{font-size:11.5px;color:var(--text-dim);min-height:14px}
+/* Зелёный — только для состояния эфира */
+.status.live{color:var(--green)}
+
+/* Портрет: плеер — плавающая карточка, как мини-плеер в приложении */
+@media (orientation: portrait){
+  .player-pane{
+    display:grid;grid-template-columns:auto 1fr;align-items:center;gap:2px 12px;
+    margin:0 12px 10px;padding:12px 14px;
+    border-radius:var(--r-panel);background:var(--raised);box-shadow:var(--shadow);
+  }
+  .player-pane .cover{width:52px;height:52px;grid-row:span 2}
+  .pname,.pmeta{text-align:left;justify-self:start;max-width:100%}
+  .transport{grid-column:1 / -1;justify-content:center;margin-top:8px}
+  .volume{grid-column:1 / -1;max-width:none}
+  .status{grid-column:1 / -1;text-align:center}
+}
 
 /* ---------- ландшафт: две колонки, как в приложении ---------- */
 @media (orientation: landscape) and (min-width: 640px){
   #app{flex-direction:row}
   .list-pane{flex:0 0 57%;min-width:0;padding:calc(8px + env(safe-area-inset-top)) 14px 0 20px}
   .player-pane{
-    flex:1 1 auto;
-    border-top:0;
-    border-left:1px solid var(--surface-variant);
-    justify-content:center;
-    padding:16px 24px;
+    flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;
+    margin:0;border-radius:0;box-shadow:none;
+    background:var(--surface);border-left:1px solid var(--outline);
+    padding:16px 24px;gap:12px;
   }
-  .player-pane .cover{width:132px;height:132px;border-radius:24px;font-size:56px}
+  .player-pane .cover{width:132px;height:132px;border-radius:28px;font-size:52px}
   .pname{font-size:20px}
-  .player-pane .transport{gap:16px}
+  .pmeta{font-size:13.5px}
+  .player-pane .transport{gap:18px}
   .volume{max-width:340px}
   .list-pane .search{margin-top:10px}
 }
-
-/* В портрете прячем из плеера то, что и так видно в списке */
-@media (orientation: portrait){
-  .player-pane .volume{max-width:none}
-}
-
-/* Кнопка «показать ещё» под длинным списком */
-.more{
-  display:block;width:100%;margin:14px 0 6px;padding:12px;
-  border:1px solid var(--surface-variant);border-radius:14px;
-  background:var(--surface);color:var(--primary);
-  font-size:14px;font-weight:600;cursor:pointer;
-}
-.more:active{transform:translateY(1px)}

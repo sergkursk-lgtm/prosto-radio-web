@@ -237,6 +237,8 @@ function renderPlayer() {
   el('status').textContent = audio.paused
     ? (current ? 'Пауза' : '')
     : 'В эфире';
+  // Зелёный только у состояния эфира — как в Android-версии
+  el('status').classList.toggle('live', !audio.paused && !!current);
 }
 
 function renderCount() {
