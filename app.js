@@ -144,6 +144,8 @@ function streamCandidates(s) {
   const twins = all.filter((x) => x.name === s.name && idOf(x) !== idOf(s)).slice(0, 3);
   const entries = [s, ...twins].map((station) => {
     const raw = station.url_resolved || station.url || '';
+    let port = '';
+    try { port = new URL(raw).port; } catch { port = ''; }
     return {
       direct: directUrl(station),
       /*
@@ -154,26 +156,31 @@ function streamCandidates(s) {
       proxied: proxiedUrl(raw),
       // http-поток на https-странице браузер заблокирует, прямой адрес бессмысленен
       blockedDirect: location.protocol === 'https:' && /^http:\/\//i.test(raw),
+      oddPort: !!port && port !== '443' && port !== '80',
     };
   });
 
-  if (store.preferProxy) {
-    // Прямой маршрут уже подводил — начинаем с прокси, прямой держим запасным
+  const main = entries[0];
+  /*
+    Когда идти сразу через прокси.
+
+    Прямой адрес заведомо не откроется, если это http-поток на https-странице.
+    Отдельный случай — нестандартный порт: «Маруся ФМ» вещает на 8000 и 9433,
+    её прямые адреса отвечают дольше трёх секунд, а через воркер те же адреса
+    открываются мгновенно — он ходит за потоком со своей стороны и проходит
+    цепочку перенаправлений сам. Ждать прямой адрес в этом случае — терять время.
+  */
+  const proxyFirst = store.preferProxy || main.blockedDirect || main.oddPort;
+
+  if (proxyFirst) {
     for (const e of entries) push(e.proxied, true);
-    for (const e of entries) push(e.direct, false);
+    for (const e of entries) if (!e.blockedDirect) push(e.direct, false);
     return out;
   }
 
-  /*
-    Сначала ВСЕ прямые адреса, потом все через прокси.
-
-    Раньше адреса шли парами «прямой, прокси» на каждую запись каталога, и это
-    оказалось худшим порядком: у «Маруси ФМ» первый хост не отвечает вообще,
-    а второй отдаёт поток почти мгновенно. Парами приложение ждало мёртвый хост,
-    потом долго ждало прокси к нему же — и только затем доходило до рабочего
-    второго адреса. Пятнадцать секунд вместо трёх.
-  */
-  for (const e of entries) if (!e.blockedDirect) push(e.direct, false);
+  // Обычный случай: сначала прямые адреса — у станции их может быть несколько,
+  // и рабочий находится за один переход, не доходя до прокси.
+  for (const e of entries) push(e.direct, false);
   for (const e of entries) push(e.proxied, true);
 
   return out;
