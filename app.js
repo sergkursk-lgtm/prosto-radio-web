@@ -47,6 +47,16 @@ const store = {
   */
   get preferProxy() { return localStorage.getItem('preferProxy') === '1'; },
   set preferProxy(v) { localStorage.setItem('preferProxy', v ? '1' : '0'); },
+  /*
+    Адрес, с которого станция уже заиграла. У «Маруси ФМ» в каталоге два хоста,
+    и первый не отвечает вообще — без этой памяти каждый запуск снова начинается
+    с мёртвого адреса и теряет на нём до десяти секунд.
+  */
+  get goodRoute() {
+    try { return JSON.parse(localStorage.getItem('goodRoute') || '{}'); }
+    catch { return {}; }
+  },
+  set goodRoute(v) { localStorage.setItem('goodRoute', JSON.stringify(v)); },
 };
 
 const el = (id) => document.getElementById(id);
@@ -175,15 +185,31 @@ function streamCandidates(s) {
   if (proxyFirst) {
     for (const e of entries) push(e.proxied, true);
     for (const e of entries) if (!e.blockedDirect) push(e.direct, false);
-    return out;
+  } else {
+    // Обычный случай: сначала прямые адреса — у станции их может быть несколько,
+    // и рабочий находится за один переход, не доходя до прокси.
+    for (const e of entries) push(e.direct, false);
+    for (const e of entries) push(e.proxied, true);
   }
 
-  // Обычный случай: сначала прямые адреса — у станции их может быть несколько,
-  // и рабочий находится за один переход, не доходя до прокси.
-  for (const e of entries) push(e.direct, false);
-  for (const e of entries) push(e.proxied, true);
+  // Адрес, с которого эта станция уже играла, — в начало списка
+  const known = store.goodRoute[idOf(s)];
+  if (known) {
+    const i = out.findIndex((c) => c.url === known);
+    if (i > 0) out.unshift(out.splice(i, 1)[0]);
+  }
 
   return out;
+}
+
+/** Запоминает адрес, с которого станция заиграла. Список ограничен, чтобы не расти вечно. */
+function rememberGoodRoute(station, url) {
+  if (!station || !url) return;
+  const map = store.goodRoute;
+  map[idOf(station)] = url;
+  const keys = Object.keys(map);
+  if (keys.length > 200) delete map[keys[0]];
+  store.goodRoute = map;
 }
 
 /**
@@ -711,6 +737,9 @@ audio.addEventListener('playing', () => {
   clearTimeout(candidateTimer);
   streamError = '';
   el('status').textContent = '';
+  // Запоминаем, какой именно адрес сработал: следующий запуск начнётся с него
+  const c = candidates[candidateIndex];
+  if (c) rememberGoodRoute(current, c.url);
 });
 audio.addEventListener('error', () => {
   // Сначала молча пробуем следующий адрес: редирект, прокси, другая запись каталога
