@@ -15,5 +15,10 @@ name = "prosto-radio-web"
 main = "worker/stream-proxy.js"
 compatibility_date = "2026-09-01"
 
+# Клиент обращается к воркеру именно по адресу workers.dev — он и есть точка входа.
+# Preview URLs не нужны: это отдельные адреса на каждую сборку, лишняя поверхность.
+workers_dev = true
+preview_urls = false
+
 # Сайт раздаётся с GitHub Pages, воркер занимается только потоками.
 # assets намеренно не подключены: воркер не должен отдавать статику.

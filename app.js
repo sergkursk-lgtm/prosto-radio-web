@@ -110,7 +110,7 @@ const idOf = (s) => s.stationuuid || s.url_resolved;
   та же станция играет, в мобильной сети нет. Воркер ходит за потоком со своей
   стороны и отдаёт его клиенту по 443, поэтому блокировка порта перестаёт мешать.
 */
-const PROXY_BASE = '';
+const PROXY_BASE = 'https://prosto-radio-web.sergkursk.workers.dev/';
 
 /** Адрес потока как есть, с повышением http → https на защищённой странице. */
 function directUrl(s) {
@@ -143,8 +143,16 @@ function streamCandidates(s) {
   // Порядок зависит от того, что уже сработало: если прямой адрес подводил,
   // начинаем с прокси, иначе каждая станция снова ждала бы таймаут впустую.
   const add = (station) => {
+    const raw = station.url_resolved || station.url || '';
     const direct = directUrl(station);
-    const throughProxy = proxiedUrl(direct);
+    /*
+      В прокси уходит ИСХОДНЫЙ адрес, а не переписанный.
+      На https-странице directUrl повышает http → https, но воркер должен идти
+      за настоящим потоком: у 57% станций TLS на их порту не поднят, и запрос
+      к https-версии просто не откроется. Это не видно при локальной отладке по
+      http — там адрес не переписывается, и оба варианта совпадают.
+    */
+    const throughProxy = proxiedUrl(raw);
     if (store.preferProxy && throughProxy) {
       push(throughProxy, true);
       push(direct, false);
