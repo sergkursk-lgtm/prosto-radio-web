@@ -84,6 +84,8 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   font-size:15px;-webkit-font-smoothing:antialiased;
   letter-spacing:-.01em;
+  /* Страница никогда не панорамируется вбок — только вниз */
+  overscroll-behavior-x:none;
 }
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 svg{display:block}
@@ -161,7 +163,19 @@ svg{display:block}
 .count{flex:0 0 auto;font-size:12.5px;color:var(--text-mute);margin:6px 0 6px}
 
 /* ---------- список ---------- */
-.list{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+/* Список крутится ТОЛЬКО вверх-вниз.
+   Одного overflow-y:auto мало: по спецификации вторая ось тогда тоже становится
+   auto, и список начинал ездить вбок под пальцем. Поэтому горизонталь запрещена
+   явно, а touch-action говорит браузеру, что жест здесь вертикальный
+   (pinch-zoom оставлен — масштаб отключать нельзя). */
+.list{
+  flex:1 1 auto;min-height:0;
+  overflow-x:hidden;overflow-y:auto;
+  touch-action:pan-y pinch-zoom;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:8px;
+}
 .row{display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer}
 .row:active{opacity:.75}
 .art{
@@ -245,7 +259,10 @@ svg{display:block}
   display:none;flex-direction:column;
   padding:calc(10px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
   background:var(--bg);
-  overflow-y:auto;
+  /* Та же причина, что и у списка: только вертикаль */
+  overflow-x:hidden;overflow-y:auto;
+  touch-action:pan-y pinch-zoom;
+  overscroll-behavior:contain;
 }
 /* Свечение: оттенок берётся из --amb-h, который ставит JS по станции */
 .player-pane::before{
