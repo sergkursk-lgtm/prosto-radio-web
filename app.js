@@ -273,7 +273,6 @@ function renderPlayer() {
   el('mute').innerHTML = svg(audio.muted || audio.volume === 0 ? 'mute' : 'volume');
   el('mute').classList.toggle('on', audio.muted || audio.volume === 0);
 
-  renderNext();
   renderMini();
 }
 
@@ -566,7 +565,6 @@ const ICONS = {
   play: '<path d="M8.2 5.4v13.2L19 12z" fill="currentColor" stroke="none"/>',
   pause: '<path d="M9.6 5.6v12.8M14.4 5.6v12.8" stroke-width="2.6"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
-  chevron: '<path d="M9.5 6l6 6-6 6"/>',
   prev: '<path d="M18.5 6.2v11.6L9.8 12z" fill="currentColor" stroke="none"/><path d="M6.6 5.6v12.8" stroke-width="2.2"/>',
   next: '<path d="M5.5 6.2v11.6L14.2 12z" fill="currentColor" stroke="none"/><path d="M17.4 5.6v12.8" stroke-width="2.2"/>',
   kebab: '<circle cx="12" cy="5.4" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="18.6" r="1.7" fill="currentColor" stroke="none"/>',
@@ -634,16 +632,6 @@ function renderMini() {
   t.setAttribute('aria-label', audio.paused ? 'Играть' : 'Пауза');
 }
 
-function renderNext() {
-  const card = el('next-card');
-  const i = current ? queue.findIndex((q) => idOf(q) === idOf(current)) : -1;
-  const nxt = i >= 0 && i + 1 < queue.length ? queue[i + 1] : null;
-  card.hidden = !nxt;
-  if (!nxt) return;
-  el('next-name').textContent = nxt.name;
-  paintArt(el('next-art'), nxt);
-}
-
 /* ---------- привязки ---------- */
 
 el('player-back').onclick = closePlayer;
@@ -652,7 +640,6 @@ el('mini').onkeydown = (e) => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPlayer(); }
 };
 el('mini-toggle').onclick = (e) => { e.stopPropagation(); togglePlay(); };
-el('next-card').onclick = () => step(1);
 el('focus-search').onclick = () => { setTab('search'); el('query').focus(); };
 el('quick-region').onclick = () => setTab('region');
 
