@@ -11,77 +11,165 @@
 -->
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Просто Радио">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
 <link rel="icon" href="favicon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#4DA3FF">
+<meta name="theme-color" content="#080F1B">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="app">
-    <!-- ЛЕВАЯ КОЛОНКА: список -->
-    <section class="list-pane">
-      <header class="topbar">
-        <h1 class="title">Просто Радио</h1>
-        <nav class="tabs" id="tabs">
-          <button class="vol neutral" data-tab="search"   aria-label="Поиск">🔍</button>
-          <button class="vol neutral" data-tab="region"   aria-label="Регион">📍</button>
-          <button class="vol neutral" data-tab="favorites" aria-label="Избранное">★</button>
-        </nav>
-      </header>
 
-      <div id="tab-search" class="tab-body">
-        <div class="search">
-          <span class="search-ico">🔍</span>
-          <input id="query" type="search" placeholder="Название станции" autocomplete="off">
+    <!-- ЛЕВАЯ КОЛОНКА (в ландшафте) / единственная (в портрете) -->
+    <div class="side">
+      <section class="list-pane">
+        <header class="topbar">
+          <h1 class="title">Просто Радио</h1>
+          <div class="topbar-actions">
+            <button class="ico" id="focus-search" type="button" aria-label="Поиск">
+              <span data-icon="search"></span>
+            </button>
+            <button class="ico" id="quick-region" type="button" aria-label="Регион">
+              <span data-icon="pin"></span>
+            </button>
+          </div>
+        </header>
+
+        <div id="tab-search" class="tab-body">
+          <div class="search">
+            <span data-icon="search"></span>
+            <input id="query" type="search" placeholder="Поиск радиостанций…" autocomplete="off">
+          </div>
+          <div class="chips" id="chips"></div>
+          <div class="count" id="count"></div>
         </div>
-        <div class="chips" id="chips"></div>
-        <div class="count" id="count"></div>
-      </div>
 
-      <div id="tab-region" class="tab-body" hidden>
-        <div class="region-card">
-          <div class="region-row">
-            <div class="region-pin">📍</div>
-            <div>
-              <div class="region-name" id="region-name">Определяем…</div>
-              <div class="region-note" id="region-note"></div>
+        <div id="tab-region" class="tab-body" hidden>
+          <div class="region-card">
+            <div class="region-row">
+              <div class="region-pin"><span data-icon="pin"></span></div>
+              <div>
+                <div class="region-name" id="region-name">Определяем…</div>
+                <div class="region-note" id="region-note"></div>
+              </div>
+            </div>
+            <div class="region-row">
+              <div class="region-pin"><span data-icon="pencil"></span></div>
+              <select id="region-select" aria-label="Выбрать регион"></select>
             </div>
           </div>
-          <div class="region-row">
-            <div class="vol region-edit">✏️</div>
-            <select id="region-select" aria-label="Выбрать регион"></select>
+          <div class="chips" id="region-chips"></div>
+          <div class="count" id="region-count"></div>
+        </div>
+
+        <div id="tab-favorites" class="tab-body" hidden></div>
+
+        <div class="list" id="list"></div>
+      </section>
+
+      <!-- Мини-плеер: появляется, когда станция играет, а экран плеера закрыт -->
+      <div class="mini" id="mini" role="button" tabindex="0" aria-label="Открыть плеер">
+        <div class="art" id="mini-art"></div>
+        <div class="meta">
+          <div class="name" id="mini-name"></div>
+          <div class="sub" id="mini-sub"></div>
+        </div>
+        <button class="ico" id="mini-toggle" type="button" aria-label="Пауза">
+          <span data-icon="pause"></span>
+        </button>
+      </div>
+
+      <!--
+        Нижняя навигация. Класс `vol` обязателен: app.js ищет вкладки
+        селектором `#tabs .vol` и переключает на них `.active`.
+      -->
+      <nav class="nav" id="tabs">
+        <button class="tab vol" type="button" data-tab="search">
+          <span data-icon="search"></span>Поиск
+        </button>
+        <button class="tab vol" type="button" data-tab="region">
+          <span data-icon="pin"></span>Регион
+        </button>
+        <button class="tab vol" type="button" data-tab="favorites">
+          <span data-icon="heart"></span>Избранное
+        </button>
+      </nav>
+    </div>
+
+    <!-- ЭКРАН ПЛЕЕРА: оверлей в портрете, постоянная колонка в ландшафте -->
+    <aside class="player-pane" id="player-pane">
+      <header class="player-head">
+        <button class="ico player-back" id="player-back" type="button" aria-label="Назад">
+          <span data-icon="back"></span>
+        </button>
+        <div class="mid">
+          <div class="label">Сейчас в эфире</div>
+          <div class="who" id="player-who">Ничего не выбрано</div>
+        </div>
+        <button class="ico" id="mute" type="button" aria-label="Звук">
+          <span data-icon="volume"></span>
+        </button>
+      </header>
+
+      <div class="player-body">
+        <div class="cover-wrap">
+          <div class="cover" id="cover"></div>
+        </div>
+
+        <div class="track">
+          <div class="now-label">Станция</div>
+          <div class="pname" id="pname">Выберите станцию</div>
+          <div class="pmeta" id="pmeta"></div>
+        </div>
+
+        <div class="air">
+          <div class="air-track" id="air-track"></div>
+          <div class="air-times">
+            <span id="elapsed">0:00</span>
+            <span class="live" id="air-state"></span>
           </div>
         </div>
-        <div class="chips" id="region-chips"></div>
-        <div class="count" id="region-count"></div>
-      </div>
 
-      <div id="tab-favorites" class="tab-body" hidden></div>
+        <div class="transport">
+          <button class="ico" id="fav" type="button" aria-label="В избранное">
+            <span data-icon="heart"></span>
+          </button>
+          <button class="ico" id="prev" type="button" aria-label="Предыдущая">
+            <span data-icon="prev"></span>
+          </button>
+          <button class="hero" id="play" type="button" aria-label="Играть">
+            <span data-icon="play"></span>
+          </button>
+          <button class="ico" id="next" type="button" aria-label="Следующая">
+            <span data-icon="next"></span>
+          </button>
+          <button class="ico" id="queue" type="button" aria-label="Очередь">
+            <span data-icon="queue"></span>
+          </button>
+        </div>
 
-      <div class="list" id="list"></div>
-    </section>
+        <!-- Громкость: в мобильном референсе её нет (там системные кнопки),
+             но это веб-приложение, и убирать работающий регулятор нельзя. -->
+        <div class="volume">
+          <span data-icon="volume"></span>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
+        </div>
 
-    <!-- ПРАВАЯ КОЛОНКА / НИЖНЯЯ ПАНЕЛЬ: плеер -->
-    <aside class="player-pane" id="player-pane">
-      <div class="cover" id="cover">📻</div>
-      <div class="pname" id="pname">Выберите станцию</div>
-      <div class="pmeta" id="pmeta"></div>
-      <div class="transport">
-        <button class="vol neutral" id="fav"  aria-label="В избранное">☆</button>
-        <button class="vol neutral" id="prev" aria-label="Предыдущая">⏮</button>
-        <button class="vol hero"    id="play" aria-label="Играть">▶</button>
-        <button class="vol neutral" id="next" aria-label="Следующая">⏭</button>
+        <div class="quality" id="quality" hidden></div>
+        <button class="next-card" id="next-card" type="button" hidden>
+          <div class="art" id="next-art"></div>
+          <div class="meta">
+            <div class="k">Следующая станция</div>
+            <div class="v" id="next-name"></div>
+          </div>
+          <span class="ico" data-icon="chevron"></span>
+        </button>
+
+        <div class="status" id="status"></div>
       </div>
-      <div class="volume">
-        <span class="vol-ico">🔈</span>
-        <input id="volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
-        <span class="vol-ico">🔊</span>
-      </div>
-      <div class="status" id="status"></div>
     </aside>
   </div>
 
