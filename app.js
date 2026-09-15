@@ -186,12 +186,15 @@ function rowFor(s) {
   play.type = 'button';
   play.setAttribute('aria-label', playing ? 'Пауза' : 'Играть');
   play.innerHTML = svg(playing ? 'pause' : 'play', 22);
-  // Нажатие на строку текущей станции переключает паузу, а не перезапускает поток
-  play.onclick = (e) => { e.stopPropagation(); tapStation(s); openPlayer(); };
+  // Нажатие на строку текущей станции переключает паузу, а не перезапускает поток.
+  // Экран плеера здесь НЕ открывается: в портрете выбор станции только запускает
+  // эфир, а плеер разворачивается тапом по мини-плееру внизу. В ландшафте правая
+  // колонка и так всегда на экране, поэтому там это ничего не меняет.
+  play.onclick = (e) => { e.stopPropagation(); tapStation(s); };
 
   row.append(art, meta, fav, play);
   row._stationId = idOf(s);
-  row.onclick = () => { tapStation(s); openPlayer(); };
+  row.onclick = () => tapStation(s);
   return row;
 }
 
