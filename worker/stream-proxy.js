@@ -27,7 +27,17 @@
 */
 const ALLOWED_SCHEMES = new Set(['http:', 'https:']);
 const MAX_REDIRECTS = 3;
-const TIMEOUT_MS = 20000;
+
+/*
+  Вещатели раскидывают слушателей по пулу узлов (listen8, listen9, listen13…),
+  и часть узлов не отвечает: у «Маруси ФМ» отвечает примерно одна попытка из трёх.
+  Одна попытка на запрос означала бы, что клиент ждёт впустую и уходит на другой
+  адрес, хотя рядом рабочий узел. Поэтому пробуем несколько раз, но быстро:
+  общий бюджет запроса ограничен, чтобы клиент не ждал дольше своего таймаута.
+*/
+const ATTEMPTS = 3;
+const ATTEMPT_TIMEOUT_MS = 3000;   // на одну попытку
+const TOTAL_BUDGET_MS = 9000;      // на весь запрос целиком
 
 /** Приватные и служебные диапазоны: через прокси в них ходить нельзя. */
 function isPrivateHost(hostname) {
@@ -78,46 +88,71 @@ export default {
       return bad('Адрес вне допустимого диапазона', 403);
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    let lastError = 'узел не ответил';
+    const deadline = Date.now() + TOTAL_BUDGET_MS;
 
-    try {
-      const upstream = await fetch(streamUrl.toString(), {
-        redirect: 'manual',                  // перенаправления проверяем сами
-        signal: controller.signal,
-        headers: {
-          // Метаданные не запрашиваем: они добавили бы в поток посторонние блоки
-          'user-agent': 'ProstoRadio/1.0 (+stream-proxy)',
-          accept: '*/*',
-        },
-      });
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+      if (Date.now() >= deadline) break;
+      let current = streamUrl;
+      lastError = 'слишком много перенаправлений';
 
-      if (upstream.status >= 300 && upstream.status < 400) {
-        const location = upstream.headers.get('location');
-        if (!location) return bad('Станция перенаправила в никуда', 502);
-        const next = new URL(location, streamUrl);
-        if (!ALLOWED_SCHEMES.has(next.protocol) || isPrivateHost(next.hostname)) {
-          return bad('Перенаправление на недопустимый адрес', 403);
+      for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+        const left = deadline - Date.now();
+        if (left <= 0) break;
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), Math.min(ATTEMPT_TIMEOUT_MS, left));
+
+        try {
+          const upstream = await fetch(current.toString(), {
+            redirect: 'manual',            // перенаправления проверяем сами
+            signal: controller.signal,
+            headers: {
+              // Метаданные не запрашиваем: они добавили бы в поток посторонние блоки
+              'user-agent': 'ProstoRadio/1.0 (+stream-proxy)',
+              accept: '*/*',
+            },
+          });
+
+          /*
+            Перенаправление проходим здесь же. Раньше воркер возвращал 302 клиенту,
+            и тот шёл за следующей нодой сам — лишняя поездка до клиента и обратно
+            на каждом шаге цепочки. Теперь клиент получает один готовый ответ.
+          */
+          if (upstream.status >= 300 && upstream.status < 400) {
+            const location = upstream.headers.get('location');
+            if (!location) { lastError = 'перенаправление без адреса'; break; }
+            const next = new URL(location, current);
+            if (!ALLOWED_SCHEMES.has(next.protocol) || isPrivateHost(next.hostname)) {
+              return bad('Перенаправление на недопустимый адрес', 403);
+            }
+            current = next;
+            continue;
+          }
+
+          if (!upstream.ok) { lastError = `станция ответила ${upstream.status}`; break; }
+
+          // Отдаём поток как есть. CORS нужен, чтобы клиент мог читать ответ со своего домена.
+          const headers = new Headers();
+          for (const name of ['content-type', 'icy-name', 'icy-genre', 'icy-br']) {
+            const value = upstream.headers.get(name);
+            if (value) headers.set(name, value);
+          }
+          headers.set('access-control-allow-origin', '*');
+          headers.set('cache-control', 'no-store');
+
+          return new Response(upstream.body, { status: 200, headers });
+        } catch (error) {
+          lastError = error?.name === 'AbortError'
+            ? 'узел не ответил вовремя'
+            : `ошибка связи (${error?.name || 'unknown'})`;
+          break;
+        } finally {
+          clearTimeout(timer);
         }
-        return Response.redirect(`${url.origin}${url.pathname}?url=${encodeURIComponent(next)}`, 302);
       }
-
-      if (!upstream.ok) return bad(`Станция ответила ${upstream.status}`, 502);
-
-      // Отдаём поток как есть. CORS нужен, чтобы клиент мог читать ответ со своего домена.
-      const headers = new Headers();
-      for (const name of ['content-type', 'icy-name', 'icy-genre', 'icy-br']) {
-        const value = upstream.headers.get(name);
-        if (value) headers.set(name, value);
-      }
-      headers.set('access-control-allow-origin', '*');
-      headers.set('cache-control', 'no-store');
-
-      return new Response(upstream.body, { status: 200, headers });
-    } catch (error) {
-      return bad(`Не удалось подключиться к станции: ${error?.name || 'ошибка'}`, 504);
-    } finally {
-      clearTimeout(timer);
     }
+
+    return bad(`Станция недоступна: ${lastError}`, 504);
   },
 };

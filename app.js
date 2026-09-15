@@ -428,6 +428,15 @@ let candidateIndex = 0;
 let streamError = '';
 let candidateTimer = 0;
 
+/*
+  Сколько ждать первых данных, прежде чем уйти на следующий адрес.
+  Рабочий поток отдаёт их за 1–2 секунды, а заблокированный оператором порт
+  не отвечает вообще — держать на нём пользователя десять секунд незачем.
+  Долго ждём только последний адрес: альтернатив у него уже нет.
+*/
+const QUICK_SWITCH_MS = 3000;
+const PATIENT_MS = 10000;
+
 function loadCandidate() {
   const c = candidates[candidateIndex];
   if (!c) return;
@@ -446,16 +455,26 @@ function loadCandidate() {
     не начнётся — пользователь останется на «Подключение…» навсегда. Поэтому
     через 10 секунд без данных идём к следующему адресу.
   */
+  const cur = candidates[candidateIndex];
+  const hasNext = candidateIndex < candidates.length - 1;
+  /*
+    Прямой адрес: если за три секунды не ответил — скорее всего порт закрыт
+    оператором, и ждать нечего.
+    Через прокси: воркер сам повторяет попытки на разных узлах вещателя, поэтому
+    ему нужно дать время — иначе клиент уйдёт раньше, чем воркер найдёт рабочий узел.
+  */
+  const patient = (cur && cur.viaProxy) || !hasNext;
+
   clearTimeout(candidateTimer);
   candidateTimer = setTimeout(() => {
     if (audio.readyState >= 2) return;          // поток уже отдаёт данные
-    if (candidateIndex < candidates.length - 1) {
+    if (hasNext) {
       advanceCandidate();
     } else if (!streamError) {
       streamError = diagnoseStreamError(current, 4);
       renderPlayer();
     }
-  }, 10000);
+  }, patient ? PATIENT_MS : QUICK_SWITCH_MS);
 }
 
 /**
