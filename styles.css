@@ -1,0 +1,244 @@
+/*
+  Оформление повторяет Android-приложение: те же цвета из его темы, объёмные кнопки
+  с градиентом и цветной тенью, компактный шрифт.
+
+  Раскладка одна и та же в разметке, а ориентация меняет её через медиазапрос:
+  в портрете плеер — полоса внизу, в ландшафте — колонка справа.
+*/
+:root{
+  --primary:#5B45E0;
+  --bg:#F7F6FC;
+  --surface:#FFFFFF;
+  --surface-variant:#E7E4F0;
+  --on-surface:#1B1B22;
+  --on-surface-variant:#48454F;
+  --outline:#797580;
+  --radius:22px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--on-surface);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:15px;
+  /* Тёмная тема системы — как в приложении */
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121016; --surface:#1C1A22; --surface-variant:#3A3845;
+    --on-surface:#E5E1E9; --on-surface-variant:#C8C4D0; --outline:#928F9C;
+  }
+}
+
+#app{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  height:100dvh;             /* iOS: иначе адресная строка съедает высоту */
+  overflow:hidden;
+}
+
+/* ---------- левая колонка: список ---------- */
+.list-pane{
+  flex:1 1 auto;
+  /* Без min-width флекс не даёт колонке сжаться: ряд чипов с прокруткой
+     распирает её до полной ширины содержимого, и в ландшафте список уезжает за экран. */
+  min-width:0;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  padding:calc(10px + env(safe-area-inset-top)) 14px 0 18px;
+}
+
+.topbar{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.title{font-size:21px;font-weight:700;letter-spacing:-.3px}
+.tabs{margin-left:auto;display:flex;gap:8px}
+
+/* ---------- объёмная кнопка ---------- */
+.vol{
+  border:1px solid rgba(255,255,255,.25);
+  border-radius:50%;
+  width:40px;height:40px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;
+  background:linear-gradient(160deg,#6E5AE8 0%,#5B45E0 55%,#4834C4 100%);
+  box-shadow:0 5px 12px rgba(91,69,224,.42), inset 0 2px 2px rgba(255,255,255,.32);
+  color:#fff;
+  cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.vol:active{transform:translateY(2px) scale(.97);box-shadow:0 1px 3px rgba(91,69,224,.4), inset 0 2px 2px rgba(255,255,255,.32)}
+.vol.neutral{
+  background:linear-gradient(160deg,#F2F0F7 0%,#E7E4F0 55%,#DAD6E6 100%);
+  box-shadow:0 4px 10px rgba(72,69,79,.20), inset 0 2px 2px rgba(255,255,255,.9);
+  border-color:rgba(255,255,255,.7);
+  color:var(--on-surface-variant);
+}
+@media (prefers-color-scheme: dark){
+  .vol.neutral{
+    background:linear-gradient(160deg,#4E4B5A 0%,#45424F 55%,#3B3844 100%);
+    box-shadow:0 4px 10px rgba(0,0,0,.45), inset 0 2px 2px rgba(255,255,255,.10);
+    border-color:rgba(255,255,255,.10);
+    color:var(--on-surface-variant);
+  }
+}
+.vol.active{background:linear-gradient(160deg,#6E5AE8,#5B45E0 60%,#4834C4);color:#fff;
+  box-shadow:0 5px 12px rgba(91,69,224,.45), inset 0 2px 2px rgba(255,255,255,.3)}
+.vol.hero{width:58px;height:58px;font-size:23px}
+.vol:disabled{opacity:.45;cursor:default}
+.vol:disabled:active{transform:none}
+
+/* ---------- поиск ---------- */
+.search{
+  flex:0 0 auto;
+  margin-top:12px;
+  height:48px;
+  border-radius:16px;
+  background:var(--surface);
+  border:1px solid rgba(121,117,128,.15);
+  box-shadow:0 4px 12px rgba(91,69,224,.08);
+  display:flex;align-items:center;gap:12px;padding:0 16px;
+}
+.search-ico{font-size:17px;opacity:.6}
+.search input{
+  border:0;outline:0;background:transparent;flex:1;
+  font-size:16px;color:var(--on-surface);
+  /* 16px обязателен: при меньшем iOS зумит страницу при фокусе */
+}
+.search input::placeholder{color:var(--outline)}
+
+/* ---------- чипы ---------- */
+.chips{
+  flex:0 0 auto;
+  display:flex;gap:9px;
+  margin:12px 0 6px;
+  padding-bottom:6px;      /* место под тень: без него низ кнопок срезается */
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto;
+  height:36px;padding:0 17px;border-radius:18px;
+  display:flex;align-items:center;
+  font-size:14px;
+  background:linear-gradient(160deg,#F2F0F7,#E7E4F0);
+  color:var(--on-surface-variant);
+  border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 3px 8px rgba(72,69,79,.16), inset 0 2px 2px rgba(255,255,255,.9);
+  cursor:pointer;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+@media (prefers-color-scheme: dark){
+  .chip{background:linear-gradient(160deg,#4E4B5A,#3B3844);border-color:rgba(255,255,255,.1);
+        box-shadow:0 3px 8px rgba(0,0,0,.4), inset 0 2px 2px rgba(255,255,255,.08)}
+}
+.chip.on{background:linear-gradient(160deg,#6E5AE8,#5B45E0 60%,#4834C4);color:#fff;
+  border-color:rgba(255,255,255,.25);box-shadow:0 5px 12px rgba(91,69,224,.42)}
+
+.count{flex:0 0 auto;text-align:right;font-size:12.5px;color:var(--on-surface-variant);margin-bottom:8px}
+
+/* ---------- список ---------- */
+.list{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.row{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 2px;
+  border-bottom:1px solid var(--surface-variant);
+}
+.art{
+  flex:0 0 42px;width:42px;height:42px;border-radius:11px;
+  background:linear-gradient(160deg,#F2F0F7,#E2DEEC);
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+}
+@media (prefers-color-scheme: dark){
+  .art{background:linear-gradient(160deg,#3A3845,#2A2833)}
+}
+.art img{width:100%;height:100%;object-fit:cover;border-radius:11px;display:block}
+.meta{flex:1;min-width:0}
+.name{font-size:15.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.name.now{color:var(--primary);font-weight:700}
+.sub{font-size:12.5px;color:var(--on-surface-variant);margin-top:2px;
+     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .vol{width:36px;height:36px;font-size:15px;flex:0 0 36px}
+.row .vol.play{width:42px;height:42px;font-size:17px;flex:0 0 42px}
+.empty{padding:26px 4px;color:var(--on-surface-variant);font-size:14px;line-height:1.5}
+
+/* ---------- регион ---------- */
+.region-card{
+  flex:0 0 auto;margin-top:12px;background:var(--surface);border-radius:var(--radius);
+  padding:14px 16px;
+  box-shadow:0 4px 14px rgba(91,69,224,.10);
+}
+.region-row{display:flex;align-items:center;gap:12px}
+.region-row + .region-row{margin-top:10px}
+.region-pin{width:38px;height:38px;border-radius:50%;background:var(--surface-variant);
+  display:flex;align-items:center;justify-content:center;font-size:18px}
+.region-name{font-size:16px;font-weight:600}
+.region-note{font-size:12.5px;color:var(--on-surface-variant);margin-top:2px}
+.region-edit{flex:0 0 38px}
+#region-select{
+  flex:1;height:38px;border-radius:12px;border:1px solid var(--surface-variant);
+  background:var(--surface);color:var(--on-surface);font-size:15px;padding:0 10px;
+}
+
+/* ---------- плеер ---------- */
+.player-pane{
+  flex:0 0 auto;
+  background:var(--surface);
+  border-top:1px solid var(--surface-variant);
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+}
+.player-pane .cover{
+  width:56px;height:56px;border-radius:14px;
+  background:linear-gradient(150deg,#8E7BF0,#5B45E0);
+  display:flex;align-items:center;justify-content:center;font-size:26px;
+  box-shadow:0 8px 20px rgba(91,69,224,.28);
+  overflow:hidden;
+}
+.player-pane .cover img{width:100%;height:100%;object-fit:cover}
+.pname{font-size:16px;font-weight:700;text-align:center;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.pmeta{font-size:12.5px;color:var(--on-surface-variant);text-align:center;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.transport{display:flex;align-items:center;gap:12px}
+.volume{display:flex;align-items:center;gap:10px;width:100%}
+.volume input{flex:1;accent-color:var(--primary)}
+.vol-ico{font-size:15px;opacity:.7}
+.status{font-size:11.5px;color:var(--outline);min-height:14px}
+
+/* ---------- ландшафт: две колонки, как в приложении ---------- */
+@media (orientation: landscape) and (min-width: 640px){
+  #app{flex-direction:row}
+  .list-pane{flex:0 0 57%;min-width:0;padding:calc(8px + env(safe-area-inset-top)) 14px 0 20px}
+  .player-pane{
+    flex:1 1 auto;
+    border-top:0;
+    border-left:1px solid var(--surface-variant);
+    justify-content:center;
+    padding:16px 24px;
+  }
+  .player-pane .cover{width:132px;height:132px;border-radius:24px;font-size:56px}
+  .pname{font-size:20px}
+  .player-pane .transport{gap:16px}
+  .volume{max-width:340px}
+  .list-pane .search{margin-top:10px}
+}
+
+/* В портрете прячем из плеера то, что и так видно в списке */
+@media (orientation: portrait){
+  .player-pane .volume{max-width:none}
+}
+
+/* Кнопка «показать ещё» под длинным списком */
+.more{
+  display:block;width:100%;margin:14px 0 6px;padding:12px;
+  border:1px solid var(--surface-variant);border-radius:14px;
+  background:var(--surface);color:var(--primary);
+  font-size:14px;font-weight:600;cursor:pointer;
+}
+.more:active{transform:translateY(1px)}

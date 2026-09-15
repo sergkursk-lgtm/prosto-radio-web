@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Просто Радио</title>
+
+<!--
+  iOS слушает эти мета-теги, а не манифест: без них «Добавить на экран Домой» откроет
+  страницу в Safari с адресной строкой, и звук в фоне будет обрываться при переключении.
+-->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Просто Радио">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<link rel="icon" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5B45E0">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ЛЕВАЯ КОЛОНКА: список -->
+    <section class="list-pane">
+      <header class="topbar">
+        <h1 class="title">Просто Радио</h1>
+        <nav class="tabs" id="tabs">
+          <button class="vol neutral" data-tab="search"   aria-label="Поиск">🔍</button>
+          <button class="vol neutral" data-tab="region"   aria-label="Регион">📍</button>
+          <button class="vol neutral" data-tab="favorites" aria-label="Избранное">★</button>
+        </nav>
+      </header>
+
+      <div id="tab-search" class="tab-body">
+        <div class="search">
+          <span class="search-ico">🔍</span>
+          <input id="query" type="search" placeholder="Название станции" autocomplete="off">
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="count" id="count"></div>
+      </div>
+
+      <div id="tab-region" class="tab-body" hidden>
+        <div class="region-card">
+          <div class="region-row">
+            <div class="region-pin">📍</div>
+            <div>
+              <div class="region-name" id="region-name">Определяем…</div>
+              <div class="region-note" id="region-note"></div>
+            </div>
+          </div>
+          <div class="region-row">
+            <div class="vol region-edit">✏️</div>
+            <select id="region-select" aria-label="Выбрать регион"></select>
+          </div>
+        </div>
+        <div class="chips" id="region-chips"></div>
+        <div class="count" id="region-count"></div>
+      </div>
+
+      <div id="tab-favorites" class="tab-body" hidden></div>
+
+      <div class="list" id="list"></div>
+    </section>
+
+    <!-- ПРАВАЯ КОЛОНКА / НИЖНЯЯ ПАНЕЛЬ: плеер -->
+    <aside class="player-pane" id="player-pane">
+      <div class="cover" id="cover">📻</div>
+      <div class="pname" id="pname">Выберите станцию</div>
+      <div class="pmeta" id="pmeta"></div>
+      <div class="transport">
+        <button class="vol neutral" id="fav"  aria-label="В избранное">☆</button>
+        <button class="vol neutral" id="prev" aria-label="Предыдущая">⏮</button>
+        <button class="vol hero"    id="play" aria-label="Играть">▶</button>
+        <button class="vol neutral" id="next" aria-label="Следующая">⏭</button>
+      </div>
+      <div class="volume">
+        <span class="vol-ico">🔈</span>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
+        <span class="vol-ico">🔊</span>
+      </div>
+      <div class="status" id="status"></div>
+    </aside>
+  </div>
+
+  <!--
+    Одно-единственное аудио на всю страницу, и оно всегда в разметке.
+
+    iOS продолжает играть в фоне только для элемента <audio>, который был запущен жестом
+    пользователя и остаётся в документе. Если создать его на лету или воспроизводить через
+    Web Audio API, звук оборвётся при блокировке экрана.
+  -->
+  <!-- crossorigin здесь НЕ ставим: он требует CORS-заголовков от радиостанций,
+       а их почти никто не отдаёт — поток просто перестанет играть. -->
+  <audio id="audio" preload="none"></audio>
+
+  <script src="app.js"></script>
+</body>
+</html>
