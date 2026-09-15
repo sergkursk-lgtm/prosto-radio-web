@@ -41,16 +41,9 @@ const store = {
   get volume() { return Number(localStorage.getItem('volume') ?? 1); },
   set volume(v) { localStorage.setItem('volume', String(v)); },
   /*
-    Помним, что прямой адрес не работает и нужен прокси. Без этой памяти каждая
-    станция заново ждала бы таймаут, прежде чем уйти на рабочий маршрут: на
-    мобильной сети оператор режет нестандартные порты, и прямой адрес молчит.
-  */
-  get preferProxy() { return localStorage.getItem('preferProxy') === '1'; },
-  set preferProxy(v) { localStorage.setItem('preferProxy', v ? '1' : '0'); },
-  /*
     Адрес, с которого станция уже заиграла. У «Маруси ФМ» в каталоге два хоста,
     и первый не отвечает вообще — без этой памяти каждый запуск снова начинается
-    с мёртвого адреса и теряет на нём до десяти секунд.
+    с мёртвого адреса и теряет на нём время.
   */
   get goodRoute() {
     try { return JSON.parse(localStorage.getItem('goodRoute') || '{}'); }
@@ -154,43 +147,29 @@ function streamCandidates(s) {
   const twins = all.filter((x) => x.name === s.name && idOf(x) !== idOf(s)).slice(0, 3);
   const entries = [s, ...twins].map((station) => {
     const raw = station.url_resolved || station.url || '';
-    let port = '';
-    try { port = new URL(raw).port; } catch { port = ''; }
     return {
       direct: directUrl(station),
       /*
-        В прокси уходит ИСХОДНЫЙ адрес, а не переписанный. На https-странице
+        В прокси уходит ИСХОДНЫЙ адрес, а не переписанный: на https-странице
         directUrl повышает http → https, но воркер должен идти за настоящим
-        потоком: у 57% станций TLS на их порту не поднят.
+        потоком, у 57% станций TLS на их порту не поднят.
       */
       proxied: proxiedUrl(raw),
-      // http-поток на https-странице браузер заблокирует, прямой адрес бессмысленен
-      blockedDirect: location.protocol === 'https:' && /^http:\/\//i.test(raw),
-      oddPort: !!port && port !== '443' && port !== '80',
     };
   });
 
-  const main = entries[0];
   /*
-    Когда идти сразу через прокси.
+    Прямые адреса ВСЕГДА первые, прокси — только последняя попытка.
 
-    Прямой адрес заведомо не откроется, если это http-поток на https-странице.
-    Отдельный случай — нестандартный порт: «Маруся ФМ» вещает на 8000 и 9433,
-    её прямые адреса отвечают дольше трёх секунд, а через воркер те же адреса
-    открываются мгновенно — он ходит за потоком со своей стороны и проходит
-    цепочку перенаправлений сам. Ждать прямой адрес в этом случае — терять время.
+    Прокси ходит к вещателю с зарубежных адресов Cloudflare, а многие российские
+    станции такие запросы не отдают. Поэтому рабочий прямой адрес не должен
+    уступать прокси ни при каких условиях: раньше здесь стояли правила «через
+    прокси первым» для нестандартных портов и залипающий флаг preferProxy,
+    и вместе они уводили через Cloudflare вообще всё — включая станции, которые
+    прекрасно играли напрямую.
   */
-  const proxyFirst = store.preferProxy || main.blockedDirect || main.oddPort;
-
-  if (proxyFirst) {
-    for (const e of entries) push(e.proxied, true);
-    for (const e of entries) if (!e.blockedDirect) push(e.direct, false);
-  } else {
-    // Обычный случай: сначала прямые адреса — у станции их может быть несколько,
-    // и рабочий находится за один переход, не доходя до прокси.
-    for (const e of entries) push(e.direct, false);
-    for (const e of entries) push(e.proxied, true);
-  }
+  for (const e of entries) push(e.direct, false);
+  for (const e of entries) push(e.proxied, true);
 
   // Адрес, с которого эта станция уже играла, — в начало списка
   const known = store.goodRoute[idOf(s)];
@@ -471,13 +450,12 @@ let streamError = '';
 let candidateTimer = 0;
 
 /*
-  Сколько ждать первых данных, прежде чем уйти на следующий адрес.
-  Рабочий поток отдаёт их за 1–2 секунды, а заблокированный оператором порт
-  не отвечает вообще — держать на нём пользователя десять секунд незачем.
-  Долго ждём только последний адрес: альтернатив у него уже нет.
+  Сколько ждать первых данных, прежде чем попробовать следующий адрес.
+  Здесь стояло 3 секунды для прямых адресов — и это оказалось вредно: рабочий,
+  но медленный поток бросался на полпути. Ожидание теперь одно и достаточно
+  долгое, чтобы не мешать станциям, которые просто отвечают не мгновенно.
 */
-const QUICK_SWITCH_MS = 3000;
-const PATIENT_MS = 10000;
+const CANDIDATE_TIMEOUT_MS = 12000;
 
 function loadCandidate() {
   const c = candidates[candidateIndex];
@@ -497,16 +475,7 @@ function loadCandidate() {
     не начнётся — пользователь останется на «Подключение…» навсегда. Поэтому
     через 10 секунд без данных идём к следующему адресу.
   */
-  const cur = candidates[candidateIndex];
   const hasNext = candidateIndex < candidates.length - 1;
-  /*
-    Прямой адрес: если за три секунды не ответил — скорее всего порт закрыт
-    оператором, и ждать нечего.
-    Через прокси: воркер сам повторяет попытки на разных узлах вещателя, поэтому
-    ему нужно дать время — иначе клиент уйдёт раньше, чем воркер найдёт рабочий узел.
-  */
-  const patient = (cur && cur.viaProxy) || !hasNext;
-
   clearTimeout(candidateTimer);
   candidateTimer = setTimeout(() => {
     if (audio.readyState >= 2) return;          // поток уже отдаёт данные
@@ -516,19 +485,11 @@ function loadCandidate() {
       streamError = diagnoseStreamError(current, 4);
       renderPlayer();
     }
-  }, patient ? PATIENT_MS : QUICK_SWITCH_MS);
+  }, CANDIDATE_TIMEOUT_MS);
 }
 
-/**
- * Переход к следующему адресу. Заодно запоминаем, какой маршрут работает:
- * уход с прямого адреса на прокси означает, что прямой блокируется, а провал
- * самого прокси означает, что прокси не помощник — тогда возвращаемся к прямому.
- */
+/** Переход к следующему адресу: предыдущий не открылся. */
 function advanceCandidate() {
-  const cur = candidates[candidateIndex];
-  const next = candidates[candidateIndex + 1];
-  if (cur && cur.viaProxy) store.preferProxy = false;
-  if (next && next.viaProxy) store.preferProxy = true;
   candidateIndex += 1;
   loadCandidate();
 }
