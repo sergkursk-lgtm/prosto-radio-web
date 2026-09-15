@@ -158,38 +158,38 @@ function rowFor(s) {
 
   const meta = document.createElement('div');
   meta.className = 'meta';
+  const isCurrent = !!current && idOf(current) === idOf(s);
+  const playing = isCurrent && !audio.paused;
   const name = document.createElement('div');
-  const playing = current && idOf(current) === idOf(s) && !audio.paused;
-  name.className = 'name' + (playing ? ' now' : '');
+  name.className = 'name' + (isCurrent ? ' now' : '');
   name.textContent = s.name;
   const sub = document.createElement('div');
   sub.className = 'sub';
   sub.textContent = [subtitleOf(s), qualityOf(s)].filter(Boolean).join(' · ');
   meta.append(name, sub);
 
-  // Правая колонка строки: кебаб сверху, битрейт пилюлей снизу — как в референсе.
-  // Раньше здесь были две круглые кнопки (избранное и играть); играть теперь
-  // можно нажатием на саму строку, а избранное переехало в меню кебаба.
-  const side = document.createElement('div');
-  side.className = 'row-side';
+  // В строке — две рабочие кнопки: избранное и играть/пауза.
+  // Кебаб с меню убран: он прятал оба действия за лишний клик, а само меню
+  // не закрывалось — ссылка на открытое меню не сохранялась, поэтому закрывать
+  // было нечего и они накапливались в DOM.
+  const isFav = store.favorites.some((f) => f.stationuuid === s.stationuuid);
 
-  const menu = document.createElement('button');
-  menu.className = 'ico';
-  menu.type = 'button';
-  menu.setAttribute('aria-label', 'Ещё действия');
-  menu.innerHTML = svg('kebab');
-  menu.onclick = (e) => { e.stopPropagation(); openRowMenu(menu, s); };
-  side.append(menu);
+  const fav = document.createElement('button');
+  fav.className = 'ico fav-btn' + (isFav ? ' on' : '');
+  fav.type = 'button';
+  fav.setAttribute('aria-label', isFav ? 'Убрать из избранного' : 'В избранное');
+  fav.innerHTML = svg(isFav ? 'heart-filled' : 'heart', 22);
+  fav.onclick = (e) => { e.stopPropagation(); toggleFavorite(s); };
 
-  const bits = qualityOf(s);
-  if (bits) {
-    const pill = document.createElement('span');
-    pill.className = 'bits';
-    pill.textContent = bits;
-    side.append(pill);
-  }
+  const play = document.createElement('button');
+  play.className = 'ico play-btn' + (playing ? ' on' : '');
+  play.type = 'button';
+  play.setAttribute('aria-label', playing ? 'Пауза' : 'Играть');
+  play.innerHTML = svg(playing ? 'pause' : 'play', 22);
+  // Нажатие на строку текущей станции переключает паузу, а не перезапускает поток
+  play.onclick = (e) => { e.stopPropagation(); tapStation(s); openPlayer(); };
 
-  row.append(art, meta, side);
+  row.append(art, meta, fav, play);
   row._stationId = idOf(s);
   row.onclick = () => { tapStation(s); openPlayer(); };
   return row;
@@ -641,49 +641,6 @@ function renderNext() {
   paintArt(el('next-art'), nxt);
 }
 
-/* ---------- меню строки (кебаб) ---------- */
-
-let rowMenuEl = null;
-
-function closeRowMenu() {
-  if (rowMenuEl) { rowMenuEl.remove(); rowMenuEl = null; }
-}
-
-function openRowMenu(anchor, station) {
-  closeRowMenu();
-  const isFav = store.favorites.some((f) => f.stationuuid === station.stationuuid);
-  const playing = current && idOf(current) === idOf(station) && !audio.paused;
-
-  const menu = document.createElement('div');
-  menu.className = 'rowmenu';
-  menu.setAttribute('role', 'menu');
-
-  const add = (icon, label, fn, danger) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.setAttribute('role', 'menuitem');
-    if (danger) b.className = 'danger';
-    b.innerHTML = svg(icon, 20) + '<span>' + label + '</span>';
-    b.onclick = (e) => { e.stopPropagation(); closeRowMenu(); fn(); };
-    menu.append(b);
-  };
-
-  add(playing ? 'pause' : 'play', playing ? 'Пауза' : 'Слушать',
-    () => { tapStation(station); openPlayer(); });
-  add(isFav ? 'heart-filled' : 'heart',
-    isFav ? 'Убрать из избранного' : 'В избранное',
-    () => toggleFavorite(station));
-
-  el('app').appendChild(menu);
-  const r = anchor.getBoundingClientRect();
-  const w = menu.offsetWidth;
-  menu.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
-  menu.style.top = Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8) + 'px';
-
-  // Меню позиционируется по координатам, поэтому при прокрутке списка его надо закрыть
-  setTimeout(() => document.addEventListener('click', closeRowMenu, { once: true }), 0);
-}
-
 /* ---------- привязки ---------- */
 
 el('player-back').onclick = closePlayer;
@@ -695,8 +652,6 @@ el('mini-toggle').onclick = (e) => { e.stopPropagation(); togglePlay(); };
 el('next-card').onclick = () => step(1);
 el('focus-search').onclick = () => { setTab('search'); el('query').focus(); };
 el('quick-region').onclick = () => setTab('region');
-el('list').addEventListener('scroll', closeRowMenu, { passive: true });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRowMenu(); });
 
 el('mute').onclick = () => {
   if (audio.muted || audio.volume === 0) {

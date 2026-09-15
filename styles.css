@@ -162,7 +162,7 @@ svg{display:block}
 
 /* ---------- список ---------- */
 .list{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
-.row{display:flex;align-items:center;gap:14px;padding:11px 0;cursor:pointer}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer}
 .row:active{opacity:.75}
 .art{
   flex:0 0 52px;width:52px;height:52px;border-radius:var(--r-art);
@@ -177,30 +177,15 @@ svg{display:block}
   font-size:13.5px;color:var(--text-dim);margin-top:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-/* Правая колонка строки: кебаб сверху, битрейт пилюлей снизу — как в референсе */
-.row-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
-.bits{
-  font-size:12px;font-weight:500;color:var(--text-dim);
-  background:var(--surface);border-radius:var(--r-pill);padding:2px 9px;
-  white-space:nowrap;
-}
-/* Кнопка остаётся 44×44 (цель касания), но отрицательные отступы убирают её вклад
-   в высоту строки: иначе кебаб с битрейтом растягивают строку до 93px против
-   ~78px в референсе. Нажатую область это не уменьшает — уменьшается только место. */
-.row .ico{width:44px;height:44px;flex:0 0 44px;margin:-6px -10px -6px 0}
-
-/* Меню строки */
-.rowmenu{
-  position:absolute;z-index:60;min-width:196px;padding:6px;
-  background:var(--raised);border:1px solid var(--line);
-  border-radius:var(--r-card);box-shadow:var(--shadow);
-}
-.rowmenu button{
-  display:flex;align-items:center;gap:10px;width:100%;min-height:44px;
-  padding:0 12px;border-radius:12px;font-size:14.5px;color:var(--text);text-align:left;
-}
-.rowmenu button:hover{background:var(--surface)}
-.rowmenu button.danger{color:#FF6B6B}
+/* Две рабочие кнопки в строке: избранное — призрачная, играть/пауза — залитая.
+   Иерархия намеренная: главное действие в строке одно, и это play. */
+.row .ico{width:44px;height:44px;flex:0 0 44px}
+.row .fav-btn{color:var(--text-dim)}
+.row .fav-btn:hover{color:var(--text)}
+.row .fav-btn.on{background:var(--accent-soft);color:var(--accent-hi)}
+.row .play-btn{background:var(--surface);color:var(--text)}
+.row .play-btn:hover{background:var(--surface-2)}
+.row .play-btn.on{background:var(--accent);color:var(--accent-on)}
 
 .empty{padding:56px 24px;text-align:center;color:var(--text-dim);font-size:14px;line-height:1.55}
 .empty b{display:block;font-size:19px;font-weight:600;color:var(--text);margin-bottom:8px}
@@ -332,7 +317,10 @@ svg{display:block}
   transition:transform .12s ease,opacity .16s ease;
 }
 .transport .hero:active{transform:scale(.94)}
-.transport .hero:disabled{opacity:.4}
+/* Приглушена, но форма читается: при opacity .4 белый круг на тёмном фоне
+   выглядел как отсутствующая кнопка. */
+.transport .hero:disabled{opacity:.55;background:rgb(255 255 255 / .55);cursor:default}
+.transport .hero:disabled:active{transform:none}
 .transport .ico{width:48px;height:48px;flex:0 0 48px;color:var(--text)}
 
 .quality{
