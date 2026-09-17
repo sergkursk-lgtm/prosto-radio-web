@@ -275,6 +275,10 @@ svg{display:block}
 .player-pane > *{position:relative}
 
 .player-head{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin-bottom:8px}
+/* Текст в шапке уезжал влево: .mid растягивался между кнопками разной ширины —
+   скрытая «назад» 0px и звук 44px. Резервируем одинаковую ширину под обе,
+   и центр текста становится центром колонки. */
+.player-head > .ico{flex:0 0 44px}
 .player-head .mid{flex:1;min-width:0;text-align:center}
 .player-head .label{font-size:12.5px;color:var(--text-dim);letter-spacing:.02em}
 .player-head .who{
@@ -374,9 +378,16 @@ svg{display:block}
   /* Плеер — постоянная правая колонка, а не оверлей */
   .player-pane{
     position:relative;inset:auto;display:flex;flex:1 1 auto;min-width:0;
+    /* Ограничение живёт здесь, а не на .player-body: панель — флекс-строка,
+       и max-width на вложенном боксе сжимал бы его и прижимал влево, уводя
+       обложку и транспорт на 160px от центра окна. margin-inline центрирует
+       колонку целиком — вместе с шапкой «Сейчас в эфире». */
+    max-width:640px;margin-inline:auto;
     padding:28px 40px 24px;
   }
-  .player-pane .player-back{display:none}
+  /* Скрыта, но занимает своё место: на десктопе возвращаться некуда, однако
+     без запаса слева текст шапки уезжает влево на середину ширины кнопки звука. */
+  .player-pane .player-back{visibility:hidden}
   /* 34vh — чтобы обложка не выдавила транспорт на низком экране телефона */
   .player-pane .cover{width:min(300px,28vw,34vh);height:min(300px,28vw,34vh)}
   .player-head .who{font-size:16px}
@@ -418,5 +429,4 @@ svg{display:block}
   .track .pname,.track .pmeta{max-width:520px}
   .air{max-width:520px}
   /* Мету и полосу держим в одной вертикали с обложкой */
-  .player-body:has(.track){max-width:560px}
 }
