@@ -90,6 +90,11 @@ function artworkCandidates(s) {
 const subtitleOf = (s) =>
   [s.country, (s.tags || '').split(',')[0]?.trim()].filter(Boolean).join(' · ');
 
+/* В строке списка страна не нужна: она одна и та же у всех станций подряд,
+   а регион выбирается вкладкой «Регион». Половина строки уходила на константу.
+   В плеере и в Media Session subtitleOf остаётся — там это осмысленная мета. */
+const rowSubtitleOf = (s) => (s.tags || '').split(',')[0]?.trim() || '';
+
 const qualityOf = (s) =>
   [s.codec?.toUpperCase(), s.bitrate ? `${s.bitrate} kbps` : ''].filter(Boolean).join(' · ');
 
@@ -280,7 +285,7 @@ function rowFor(s) {
   name.textContent = s.name;
   const sub = document.createElement('div');
   sub.className = 'sub';
-  sub.textContent = [subtitleOf(s), qualityOf(s)].filter(Boolean).join(' · ');
+  sub.textContent = [rowSubtitleOf(s), qualityOf(s)].filter(Boolean).join(' · ');
   meta.append(name, sub);
 
   // В строке — две рабочие кнопки: избранное и играть/пауза.
