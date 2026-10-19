@@ -29,6 +29,26 @@ const ALLOWED_SCHEMES = new Set(['http:', 'https:']);
 const MAX_REDIRECTS = 3;
 
 /*
+  Воркер отдаёт любой публичный поток, поэтому чужие сайты могли бы гонять через
+  него свой трафик и выжигать квоту Workers. Пускаем только свои страницы:
+  github.io (в том числе форки) и локальный запуск.
+  shortcut: запрос совсем без Origin и Referer пропускается, иначе часть плееров
+  и приложений на iOS останется без звука; если квоту начнут выжигать — менять на
+  токен в query. Свой домен вместо github.io сюда же.
+*/
+const ALLOWED_ORIGIN = /^https:\/\/[a-z0-9-]+\.github\.io$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+
+function originAllowed(request) {
+  const source = request.headers.get('origin') || request.headers.get('referer');
+  if (!source) return true;
+  try {
+    return ALLOWED_ORIGIN.test(new URL(source).origin);
+  } catch {
+    return false;
+  }
+}
+
+/*
   Вещатели раскидывают слушателей по пулу узлов (listen8, listen9, listen13…),
   и часть узлов не отвечает: у «Маруси ФМ» отвечает примерно одна попытка из трёх.
   Одна попытка на запрос означала бы, что клиент ждёт впустую и уходит на другой
@@ -46,19 +66,35 @@ function isPrivateHost(hostname) {
 
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4) {
-    const [a, b] = ipv4.slice(1).map(Number);
+    const [a, b, c] = ipv4.slice(1).map(Number);
+    if (a === 0) return true;
     if (a === 10) return true;
     if (a === 127) return true;
     if (a === 169 && b === 254) return true;
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
-    if (a === 0) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;   // CGNAT операторов
+    if (a === 192 && b === 0 && c === 0) return true;    // зарезервировано протоколами
+    if (a === 198 && (b === 18 || b === 19)) return true; // тестовые стенды
+    if (a >= 224) return true;                          // multicast, служебное, broadcast
   }
 
   // IPv6 в скобках
   if (host.startsWith('[')) {
     const inner = host.slice(1, host.indexOf(']'));
-    if (inner === '::1' || inner.startsWith('fc') || inner.startsWith('fd') || inner.startsWith('fe80')) return true;
+    /*
+      ::ffff:127.0.0.1 — тот же localhost, записанный по-другому. URL-парсер
+      нормализует его в hex (::ffff:7f00:1), поэтому понимаем обе записи.
+    */
+    const dotted = inner.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+    if (dotted) return isPrivateHost(dotted[1]);
+    const hex = inner.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (hex) {
+      const n = (parseInt(hex[1], 16) << 16) | parseInt(hex[2], 16);
+      return isPrivateHost([n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'));
+    }
+    if (inner === '::' || inner === '::1') return true;
+    if (inner.startsWith('fc') || inner.startsWith('fd') || inner.startsWith('fe80') || inner.startsWith('ff')) return true;
   }
   return false;
 }
@@ -73,6 +109,7 @@ export default {
     const target = url.searchParams.get('url');
 
     if (!target) return bad('Укажите адрес потока: ?url=');
+    if (!originAllowed(request)) return bad('Запрос с чужого сайта', 403);
 
     let streamUrl;
     try {

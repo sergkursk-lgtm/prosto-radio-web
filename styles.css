@@ -1,95 +1,129 @@
 /*
-  «Тёмная классика» — вариант 1 с дизайн-борда «Просто Радио».
+  «Стеклянный эфир» — редизайн «Просто Радио» в тёмном glassmorphism.
 
-  Палитра снята с референса замером, а не на глаз:
-    фон       #080F1B  oklch(0.170 0.028 261)   — 78% пикселей экрана
-    поверхность #172336 oklch(0.255 0.040 260)   — поля поиска, чипы, пилюли
-    текст-дим  #7E8A9C  oklch(0.630 0.030 258)
-  Фон намеренно синий (хрома 0.028), а не нейтрально-серый: это и даёт
-  ощущение «глубокого» интерфейса. Светлая тема — вариант 2 того же борда.
+  Язык: глубокий тёмный фон с радиальными свечениями (синий → фиолетовый),
+  frosted-glass поверхности (rgba-белый 0.05–0.10 + backdrop-filter),
+  акцент-градиент синий → фиолетовый → голубой, пульсирующая play-кнопка.
 
-  Три осознанных отличия от референса (он макет, а не продукт):
-    1. Чипы 44px вместо ~29px — иначе не проходят по размеру цели касания.
-    2. Полоса в плеере без бегунка: у живого эфира нет длительности и перемотки.
-       Слева — время прослушивания, справа — «В ЭФИРЕ».
-    3. Свечение вокруг обложки выводится из имени станции, а не сэмплируется из
-       логотипа: чужие логотипы отдаются без CORS-заголовков, и getImageData
-       на них бросает исключение.
+  Обе темы живут в одних и тех же токенах: светлая — тот же стеклянный
+  язык на светлом фоне, включается атрибутом data-theme на <html> через
+  переключатель в шапке (localStorage, по умолчанию тёмная).
+
+  Неизменное:
+  - DOM-контракт app.js: #tabs .vol, #list .row, .mini.show,
+    .player-pane.open, .chip.on, --accent-soft, --amb-h (ставит JS по станции).
+  - Никаких внешних шрифтов и зависимостей — офлайн-чистота.
+  - Список крутится только по вертикали; горизонталь запрещена явно.
+  - Цели касания не меньше 44px.
 */
 
 :root{
-  /* Поверхности */
-  --bg:#080F1B;
-  --surface:#172336;
-  --surface-2:#1E2C44;
-  --raised:#131E31;
-  --line:#1B2942;
-  --cover:#172336;
+  color-scheme:dark;
+
+  /* Фон: база + два радиальных свечения */
+  --bg:#05070D;
+  --glow-a:oklch(0.46 0.14 256 / .34);
+  --glow-b:oklch(0.42 0.12 292 / .22);
+
+  /* Стекло */
+  --surface:rgba(255,255,255,.055);
+  --surface-2:rgba(255,255,255,.10);
+  --raised:rgba(255,255,255,.07);
+  --bg-glass:rgba(7,10,18,.68);
+  --panel-glass:rgba(10,14,24,.55);
+  --glass-line:rgba(255,255,255,.10);
+  --glass-line-2:rgba(255,255,255,.18);
+  --blur:16px;
+  --blur-lg:26px;
 
   /* Текст */
-  --text:#ECEFF5;
-  --text-dim:#93A0B4;
-  --text-mute:#7B8798;
-  --chip-fg:#C6D0DE;
+  --text:#EDF2FA;
+  --text-dim:#A3AFC4;
+  --text-mute:#8491A6;
+  --chip-fg:#C4CFE0;
 
-  /* Акцент */
+  /* Акцент-семейство: одна градиентная линия на все состояния */
   --accent:#2C6BD4;
-  --accent-hi:#4C8DF0;
+  --accent-hi:#5B9BFF;
   --accent-on:#FFFFFF;
-  --accent-soft:rgb(44 107 212 / .16);
+  --accent-soft:rgb(44 107 212 / .20);
+  --grad:linear-gradient(135deg,#3D82F0 0%,#7A5CFF 52%,#38BDF8 100%);
 
   /* Эфир */
-  --live:#35D07F;
+  --live:#3ADB8A;
 
   /* Свечение обложки: оттенок подставляет JS по станции */
   --amb-h:258;
 
-  --r-art:12px;
+  --hero-bg:var(--grad);
+  --hero-fg:#FFFFFF;
+
+  --r-art:14px;
   --r-card:18px;
   --r-sheet:26px;
   --r-pill:999px;
 
-  --nav-h:64px;
-  --shadow:0 18px 40px -14px rgb(0 0 0 / .65);
+  --nav-h:60px;
+  --shadow:0 18px 44px -16px rgb(0 0 0 / .6);
+  --shadow-soft:0 10px 30px -12px rgb(0 0 0 / .45);
 }
 
-/* Вариант 2 борда: светлый и лёгкий */
-@media (prefers-color-scheme: light){
-  :root{
-    --bg:#FFFFFF;
-    --surface:#F1F4F9;
-    --surface-2:#E6EBF3;
-    --raised:#F7F9FC;
-    --line:#E4E9F0;
-    --cover:#EEF2F7;
+/* Светлая тема: тот же стеклянный язык, светлый фон */
+html[data-theme="light"]{
+  color-scheme:light;
 
-    --text:#0E1420;
-    --text-dim:#5B6577;
-    --text-mute:#646E7D;
-    --chip-fg:#3A4557;
+  --bg:#E9EEF7;
+  --glow-a:oklch(0.62 0.09 252 / .42);
+  --glow-b:oklch(0.66 0.07 290 / .28);
 
-    --accent:#2C6BD4;
-    --accent-hi:#1F5FC8;
-    --accent-soft:rgb(44 107 212 / .10);
-    --live:#0E9E58;
+  --surface:rgba(255,255,255,.55);
+  --surface-2:rgba(255,255,255,.84);
+  --raised:rgba(255,255,255,.62);
+  --bg-glass:rgba(233,238,247,.74);
+  --panel-glass:rgba(255,255,255,.55);
+  --glass-line:rgba(16,30,58,.10);
+  --glass-line-2:rgba(16,30,58,.20);
 
-    --shadow:0 16px 36px -16px rgb(14 20 32 / .22);
-  }
+  --text:#0F1729;
+  --text-dim:#46536A;
+  --text-mute:#5C6A81;
+  --chip-fg:#33405A;
+
+  --accent:#2C6BD4;
+  --accent-hi:#1B57B8;
+  --accent-soft:rgb(44 107 212 / .13);
+  --grad:linear-gradient(135deg,#2C6BD4 0%,#5B5BD6 52%,#0E86C8 100%);
+
+  --live:#0E9E58;
+
+  --shadow:0 18px 40px -18px rgb(24 40 80 / .32);
+  --shadow-soft:0 10px 26px -14px rgb(24 40 80 / .26);
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{
-  background:var(--bg);color:var(--text);
+  background:
+    radial-gradient(52% 44% at 8% -6%, var(--glow-a), transparent 72%),
+    radial-gradient(44% 40% at 92% 10%, var(--glow-b), transparent 74%),
+    radial-gradient(60% 50% at 50% 118%, var(--glow-a), transparent 78%),
+    var(--bg);
+  color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   font-size:15px;-webkit-font-smoothing:antialiased;
   letter-spacing:-.01em;
-  /* Страница никогда не панорамируется вбок — только вниз */
   overscroll-behavior-x:none;
 }
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 svg{display:block}
 [data-icon]{display:flex;align-items:center;justify-content:center}
+
+/* ---------- фокус: кольцо у всех, аккуратное у круглых кнопок ---------- */
+:focus-visible{outline:2px solid var(--accent-hi);outline-offset:2px}
+.ico:focus-visible,.chip:focus-visible,.theme-toggle:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent-hi);
+}
 
 #app{
   display:flex;flex-direction:column;height:100%;height:100dvh;overflow:hidden;
@@ -111,10 +145,23 @@ svg{display:block}
 .ico:disabled:hover{background:none;color:var(--text-dim)}
 .ico:disabled:active{transform:none}
 
+/* ---------- переключатель темы (свой SVG, минуя data-icon) ---------- */
+.theme-toggle{
+  width:44px;height:44px;flex:0 0 44px;border-radius:var(--r-pill);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-dim);border:1px solid var(--glass-line);
+  background:var(--raised);
+  transition:background .16s ease,color .16s ease,transform .12s ease;
+}
+.theme-toggle:hover{background:var(--surface-2);color:var(--text)}
+.theme-toggle:active{transform:scale(.94)}
+/* В тёмной теме показываем «солнце» (уйти в светлую), и наоборот */
+.theme-toggle .icon-sun{display:flex}
+.theme-toggle .icon-moon{display:none}
+html[data-theme="light"] .theme-toggle .icon-sun{display:none}
+html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
+
 /* ================= КОЛОНКА СПИСКА ================= */
-/* .side обязан тянуться на всю высоту и быть флекс-колонкой: иначе он сжимается
-   по содержимому, и нижняя навигация уезжает за пределы экрана — её просто
-   не видно на телефоне. */
 .side{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 
 .list-pane{
@@ -126,14 +173,19 @@ svg{display:block}
 .title{font-size:23px;font-weight:700;letter-spacing:-.6px;flex:1;min-width:0}
 .topbar-actions{display:flex;gap:2px}
 
-/* ---------- поиск: пилюля без границы ---------- */
+/* ---------- поиск: стеклянная пилюля ---------- */
 .search{
   flex:0 0 auto;margin-top:12px;height:48px;border-radius:var(--r-pill);
-  background:var(--surface);
+  background:var(--surface);border:1px solid var(--glass-line);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
   display:flex;align-items:center;gap:10px;padding:0 16px;color:var(--text-dim);
-  transition:background .16s ease,box-shadow .16s ease;
+  transition:border-color .16s ease,box-shadow .16s ease,background .16s ease;
 }
-.search:focus-within{box-shadow:0 0 0 2px var(--accent-hi)}
+.search:hover{border-color:var(--glass-line-2)}
+.search:focus-within{
+  border-color:var(--accent-hi);
+  box-shadow:0 0 0 2px var(--accent-soft),0 0 24px -8px var(--accent-soft);
+}
 .search input{
   border:0;outline:0;background:transparent;flex:1;min-width:0;height:100%;
   font-size:16px;color:var(--text);letter-spacing:-.01em;
@@ -142,7 +194,7 @@ svg{display:block}
 .search input::placeholder{color:var(--text-dim)}
 .search input::-webkit-search-cancel-button{display:none}
 
-/* ---------- чипы ---------- */
+/* ---------- чипы: стеклянные пилюли ---------- */
 .chips{
   flex:0 0 auto;display:flex;gap:8px;margin:14px 0 4px;padding-bottom:4px;
   overflow-x:auto;scrollbar-width:none;
@@ -151,36 +203,49 @@ svg{display:block}
 }
 .chips::-webkit-scrollbar{display:none}
 .chip{
-  /* 44px — цель касания; в референсе чип ниже, но он макет, а не продукт */
   flex:0 0 auto;min-height:44px;padding:0 18px;border-radius:var(--r-pill);
   display:flex;align-items:center;font-size:14.5px;font-weight:500;
-  background:var(--surface);color:var(--chip-fg);white-space:nowrap;
-  transition:background .16s ease,color .16s ease;
+  background:var(--surface);border:1px solid var(--glass-line);
+  color:var(--chip-fg);white-space:nowrap;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
 }
-.chip:hover{background:var(--surface-2)}
-.chip.on{background:var(--accent);color:var(--accent-on);font-weight:600}
+.chip:hover{background:var(--surface-2);border-color:var(--glass-line-2)}
+.chip.on{
+  background:var(--grad);border-color:transparent;
+  color:var(--accent-on);font-weight:600;
+  box-shadow:0 8px 22px -10px var(--accent-soft);
+}
 
 .count{flex:0 0 auto;font-size:12.5px;color:var(--text-mute);margin:6px 0 6px}
 
-/* ---------- список ---------- */
-/* Список крутится ТОЛЬКО вверх-вниз.
-   Одного overflow-y:auto мало: по спецификации вторая ось тогда тоже становится
-   auto, и список начинал ездить вбок под пальцем. Поэтому горизонталь запрещена
-   явно, а touch-action говорит браузеру, что жест здесь вертикальный
-   (pinch-zoom оставлен — масштаб отключать нельзя). */
+/* ---------- список: карточки-строки ---------- */
+/* Крутится ТОЛЬКО вверх-вниз: горизонталь запрещена явно, жест вертикальный */
 .list{
   flex:1 1 auto;min-height:0;
+  display:grid;grid-template-columns:1fr;align-content:start;gap:8px;
   overflow-x:hidden;overflow-y:auto;
   touch-action:pan-y pinch-zoom;
   overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
-  padding-bottom:8px;
+  padding:4px 2px 10px;
 }
-.row{display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer}
-.row:active{opacity:.75}
+.list::-webkit-scrollbar{width:10px}
+.list::-webkit-scrollbar-thumb{
+  background:var(--glass-line-2);border-radius:var(--r-pill);
+  border:3px solid transparent;background-clip:content-box;
+}
+.row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;min-width:0;cursor:pointer;
+  background:var(--surface);border:1px solid var(--glass-line);
+  border-radius:var(--r-card);
+  transition:background .16s ease,border-color .16s ease,transform .12s ease;
+}
+.row:hover{background:var(--surface-2);border-color:var(--glass-line-2)}
+.row:active{transform:scale(.985)}
 .art{
   flex:0 0 52px;width:52px;height:52px;border-radius:var(--r-art);
-  background:var(--cover);display:flex;align-items:center;justify-content:center;
+  background:var(--glass-line);display:flex;align-items:center;justify-content:center;
   color:var(--text-mute);overflow:hidden;
 }
 .art img{width:100%;height:100%;object-fit:cover;display:block}
@@ -191,28 +256,37 @@ svg{display:block}
   font-size:13.5px;color:var(--text-dim);margin-top:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-/* Две рабочие кнопки в строке: избранное — призрачная, играть/пауза — залитая.
-   Иерархия намеренная: главное действие в строке одно, и это play. */
+/* Две рабочие кнопки в строке: избранное — призрачная, играть — главная */
 .row .ico{width:44px;height:44px;flex:0 0 44px}
 .row .fav-btn{color:var(--text-dim)}
 .row .fav-btn:hover{color:var(--text)}
 .row .fav-btn.on{background:var(--accent-soft);color:var(--accent-hi)}
-.row .play-btn{background:var(--surface);color:var(--text)}
-.row .play-btn:hover{background:var(--surface-2)}
-.row .play-btn.on{background:var(--accent);color:var(--accent-on)}
+.row .play-btn{background:var(--surface-2);color:var(--text)}
+.row .play-btn:hover{background:var(--glass-line-2)}
+.row .play-btn.on{
+  background:var(--grad);color:var(--accent-on);
+  box-shadow:0 6px 18px -8px var(--accent-soft);
+}
 
 .empty{padding:56px 24px;text-align:center;color:var(--text-dim);font-size:14px;line-height:1.55}
 .empty b{display:block;font-size:19px;font-weight:600;color:var(--text);margin-bottom:8px}
 
 .more{
-  display:block;width:100%;margin:12px 0 8px;padding:14px;
-  border:1px solid var(--line);border-radius:var(--r-card);
+  display:block;width:100%;margin:4px 0 8px;padding:14px;
+  border:1px solid var(--glass-line);border-radius:var(--r-card);
   background:var(--surface);color:var(--accent-hi);font-size:14.5px;font-weight:600;
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
 }
+.more:hover{background:var(--surface-2)}
 .more:active{transform:translateY(1px)}
 
 /* ---------- регион ---------- */
-.region-card{flex:0 0 auto;margin-top:12px;background:var(--surface);border-radius:var(--r-card);padding:16px}
+.region-card{
+  flex:0 0 auto;margin-top:12px;
+  background:var(--surface);border:1px solid var(--glass-line);
+  border-radius:var(--r-card);padding:16px;
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+}
 .region-row{display:flex;align-items:center;gap:12px}
 .region-row + .region-row{margin-top:12px}
 .region-pin{
@@ -222,16 +296,21 @@ svg{display:block}
 .region-name{font-size:16.5px;font-weight:600}
 .region-note{font-size:12.5px;color:var(--text-dim);margin-top:2px}
 #region-select{
-  flex:1;height:44px;border-radius:14px;border:1px solid var(--line);
+  flex:1;height:44px;border-radius:14px;border:1px solid var(--glass-line);
   background:var(--bg);color:var(--text);font-size:15px;padding:0 12px;
 }
 
-/* ================= НИЖНЯЯ НАВИГАЦИЯ ================= */
+/* ================= НИЖНЯЯ НАВИГАЦИЯ: плавающая стеклянная панель ================= */
 .nav{
   flex:0 0 auto;display:flex;align-items:stretch;
   height:calc(var(--nav-h) + env(safe-area-inset-bottom));
-  padding-bottom:env(safe-area-inset-bottom);
-  background:var(--bg);border-top:1px solid var(--line);
+  margin:0 12px calc(6px + env(safe-area-inset-bottom));
+  padding-bottom:0;
+  background:var(--raised);
+  border:1px solid var(--glass-line);border-radius:22px;
+  backdrop-filter:blur(var(--blur-lg)) saturate(1.3);
+  -webkit-backdrop-filter:blur(var(--blur-lg)) saturate(1.3);
+  box-shadow:var(--shadow-soft);
 }
 .nav .tab{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
@@ -241,13 +320,24 @@ svg{display:block}
 .nav .tab.active{color:var(--accent-hi)}
 .nav .tab:active{opacity:.7}
 
-/* ================= МИНИ-ПЛЕЕР ================= */
+/* ================= МИНИ-ПЛЕЕР: плавающая карточка ================= */
 .mini{
   flex:0 0 auto;display:none;align-items:center;gap:12px;
-  margin:0 12px 8px;padding:10px 12px;border-radius:var(--r-card);
-  background:var(--raised);box-shadow:var(--shadow);cursor:pointer;
+  margin:0 12px 10px;padding:10px 12px;border-radius:var(--r-sheet);
+  background:var(--raised);border:1px solid var(--glass-line);
+  backdrop-filter:blur(var(--blur-lg));-webkit-backdrop-filter:blur(var(--blur-lg));
+  box-shadow:var(--shadow);cursor:pointer;
+  transition:border-color .16s ease,transform .12s ease;
 }
 .mini.show{display:flex}
+.mini:hover{border-color:var(--glass-line-2)}
+.mini:active{transform:scale(.985)}
+/* Тело мини-плеера — своя кнопка: раньше нажатие на неё открывало плеер,
+   а внутри неё жила кнопка паузы — вложенная кнопка в кнопке. */
+.mini-open{
+  flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:12px;
+  text-align:left;border-radius:var(--r-sheet);
+}
 .mini .art{flex:0 0 40px;width:40px;height:40px;border-radius:10px}
 .mini .meta{min-width:0}
 .mini .name{font-size:14.5px}
@@ -258,18 +348,19 @@ svg{display:block}
   position:absolute;inset:0;z-index:50;
   display:none;flex-direction:column;
   padding:calc(10px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
-  background:var(--bg);
-  /* Та же причина, что и у списка: только вертикаль */
+  background:var(--bg-glass);
+  backdrop-filter:blur(var(--blur-lg)) saturate(1.25);
+  -webkit-backdrop-filter:blur(var(--blur-lg)) saturate(1.25);
   overflow-x:hidden;overflow-y:auto;
   touch-action:pan-y pinch-zoom;
   overscroll-behavior:contain;
 }
-/* Свечение: оттенок берётся из --amb-h, который ставит JS по станции */
+/* Свечение: оттенок из --amb-h, который JS ставит по станции */
 .player-pane::before{
-  content:'';position:absolute;inset:0;pointer-events:none;
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
   background:
-    radial-gradient(130% 55% at 50% -8%, oklch(0.46 0.13 var(--amb-h) / .55) 0%, transparent 62%),
-    radial-gradient(90% 40% at 50% 104%, oklch(0.40 0.10 var(--amb-h) / .30) 0%, transparent 70%);
+    radial-gradient(130% 55% at 50% -8%, oklch(0.46 0.14 var(--amb-h) / .6) 0%, transparent 62%),
+    radial-gradient(90% 40% at 50% 104%, oklch(0.40 0.11 var(--amb-h) / .32) 0%, transparent 70%);
 }
 .player-pane.open{display:flex}
 .player-pane > *{position:relative}
@@ -290,14 +381,15 @@ svg{display:block}
 
 .cover-wrap{position:relative;display:flex;align-items:center;justify-content:center}
 .cover-wrap::before{
-  content:'';position:absolute;width:78%;height:78%;border-radius:50%;
-  background:oklch(0.55 0.17 var(--amb-h) / .55);filter:blur(46px);
+  content:'';position:absolute;width:82%;height:82%;border-radius:50%;
+  background:oklch(0.55 0.18 var(--amb-h) / .55);filter:blur(48px);
 }
 .player-pane .cover{
   position:relative;width:min(232px,58vw);height:min(232px,58vw);
-  border-radius:24px;background:var(--cover);overflow:hidden;
+  border-radius:28px;background:var(--cover-solid,var(--glass-line));overflow:hidden;
   display:flex;align-items:center;justify-content:center;color:var(--text-mute);
-  box-shadow:0 28px 60px -18px rgb(0 0 0 / .8);
+  border:1px solid var(--glass-line);
+  box-shadow:0 28px 60px -18px rgb(0 0 0 / .65);
 }
 .player-pane .cover img{width:100%;height:100%;object-fit:cover}
 
@@ -312,14 +404,14 @@ svg{display:block}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80vw;
 }
 
-/* Полоса эфира: без бегунка — у живого потока нет длительности */
+/* Полоса эфира: без бегунка — у живого потока нет длительности и перемотки */
 .air{width:100%;max-width:420px;flex:0 0 auto}
 .air-track{
-  height:3px;border-radius:var(--r-pill);background:var(--line);overflow:hidden;position:relative;
+  height:3px;border-radius:var(--r-pill);background:var(--glass-line);overflow:hidden;position:relative;
 }
 .air-track::after{
   content:'';position:absolute;inset:0;border-radius:var(--r-pill);
-  background:linear-gradient(90deg,var(--accent) 0%,var(--accent-hi) 100%);
+  background:var(--grad);
 }
 .air-track.playing::after{animation:air 2.4s ease-in-out infinite}
 @keyframes air{
@@ -330,23 +422,38 @@ svg{display:block}
 .air-times .live{color:var(--live);font-weight:600;letter-spacing:.04em}
 
 .transport{display:flex;align-items:center;justify-content:center;gap:18px;flex:0 0 auto}
-/* Главная кнопка белая, как в референсе, — а не акцентная */
+/* Пуск: единственная залитая градиентом кнопка; пульс-кольцо живёт за ней */
 .transport .hero{
-  width:64px;height:64px;flex:0 0 64px;border-radius:var(--r-pill);
-  background:#FFFFFF;color:#0A1220;
+  position:relative;
+  width:68px;height:68px;flex:0 0 68px;border-radius:var(--r-pill);
+  background:var(--hero-bg);color:var(--hero-fg);
   display:flex;align-items:center;justify-content:center;
-  transition:transform .12s ease,opacity .16s ease;
+  box-shadow:0 12px 32px -10px var(--accent-soft);
+  transition:transform .12s ease,opacity .16s ease,filter .16s ease;
+}
+.transport .hero::after{
+  content:'';position:absolute;inset:-7px;border-radius:inherit;z-index:-1;
+  background:var(--hero-bg);filter:blur(12px);opacity:.4;
+  animation:pulse 2.6s ease-in-out infinite;
+}
+@keyframes pulse{
+  0%,100%{opacity:.35;transform:scale(1)}
+  50%{opacity:.6;transform:scale(1.07)}
 }
 .transport .hero:active{transform:scale(.94)}
-/* Приглушена, но форма читается: при opacity .4 белый круг на тёмном фоне
-   выглядел как отсутствующая кнопка. */
-.transport .hero:disabled{opacity:.55;background:rgb(255 255 255 / .55);cursor:default}
+/* Играет — кольцо дышит активнее */
+.player-pane:has(.air-track.playing) .transport .hero::after{opacity:.75}
+.transport .hero:disabled{
+  opacity:.5;cursor:default;filter:grayscale(.65);
+  box-shadow:none;
+}
+.transport .hero:disabled::after{animation:none;opacity:0}
 .transport .hero:disabled:active{transform:none}
 .transport .ico{width:48px;height:48px;flex:0 0 48px;color:var(--text)}
 
 .quality{
   align-self:center;font-size:12px;color:var(--text-dim);
-  border:1px solid var(--line);border-radius:var(--r-pill);padding:5px 12px;
+  border:1px solid var(--glass-line);border-radius:var(--r-pill);padding:5px 12px;
 }
 
 .volume{
@@ -358,9 +465,9 @@ svg{display:block}
 .status{font-size:12px;color:var(--text-dim);text-align:center;min-height:15px;flex:0 0 auto}
 
 /* ================= ЛАНДШАФТ / ДЕСКТОП =================
-   Две колонки — на широком экране ИЛИ на телефоне в ландшафте. Одного
-   min-width:900px мало: телефон 844×390 в ландшафте оставался с одноколоночной
-   раскладкой, хотя в нём плеер должен стоять справа постоянной колонкой. */
+   Две колонки — на широком экране ИЛИ на телефоне в ландшафте.
+   На ≥1024px список разворачивается в двухколоночную сетку в растянутой
+   колонке, а плеер встаёт закреплённой справа стеклянной карточкой. */
 @media (min-width:900px), (orientation:landscape) and (min-width:640px){
   #app{flex-direction:row}
 
@@ -372,7 +479,7 @@ svg{display:block}
     background:var(--bg);border-right:1px solid var(--line);
   }
   .list-pane{flex:1 1 auto;min-height:0;padding:16px 16px 0}
-  .nav{background:var(--bg)}
+  .nav{margin:0 16px calc(10px + env(safe-area-inset-bottom))}
   .mini{display:none !important}
 
   /* Плеер — постоянная правая колонка, а не оверлей */
@@ -397,6 +504,20 @@ svg{display:block}
   .air{max-width:440px}
 }
 
+/* Широкий экран: список в сетку, колонка тянется, плеер закреплён */
+@media (min-width:1024px){
+  .side{flex:1 1 auto;border-right:0}
+  .list-pane{padding:18px 20px 0}
+  .list{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+
+  .player-pane{
+    flex:0 0 400px;
+    margin:16px 16px 16px 0;
+    border:1px solid var(--glass-line);border-radius:30px;
+    padding:28px 30px 24px;
+  }
+}
+
 /* Телефон в ландшафте: по высоте тесно, ужимаем вертикаль */
 @media (orientation:landscape) and (max-height:520px){
   .player-pane{padding:10px 20px 12px}
@@ -408,15 +529,12 @@ svg{display:block}
   .track .pname{font-size:16px;margin-top:0}
   .track .pmeta{font-size:12.5px}
   .transport{gap:8px}
-  .transport .hero{width:50px;height:50px;flex:0 0 50px}
+  .transport .hero{width:52px;height:52px;flex:0 0 52px}
   .transport .ico{width:38px;height:38px;flex:0 0 38px}
   .volume{max-width:240px}
   .quality{padding:3px 10px}
-  /* На 390px высоты строка состояния не помещается */
   .status{display:none}
 
-  /* Левая панель: высота в дефиците, отдаём её списку.
-     Размеры целей касания (чипы, кнопки строк) НЕ уменьшаем — только отступы. */
   .list-pane{padding:8px 14px 0}
   .title{font-size:20px}
   .search{margin-top:8px}
@@ -432,4 +550,11 @@ svg{display:block}
   .track .pname,.track .pmeta{max-width:520px}
   .air{max-width:520px}
   /* Мету и полосу держим в одной вертикали с обложкой */
+}
+
+/* Тишина для тех, кто просит меньше анимации.
+   Блок пропал при правке десктопа — возвращаем: prefers-reduced-motion это
+   не украшение, а доступность. */
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
 }

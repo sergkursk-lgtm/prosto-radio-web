@@ -6,11 +6,12 @@
   это живые потоки, и попытка их сохранить только мешает.
 */
 
-const VERSION = 'prosto-radio-v2.15-ui17';
+const VERSION = 'prosto-radio-v2.16-filters';
 const SHELL = [
   './',
   'index.html',
   'styles.css',
+  'catalog.js',
   'app.js',
   'manifest.webmanifest',
   'stations.json',

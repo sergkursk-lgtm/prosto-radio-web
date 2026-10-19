@@ -13,22 +13,7 @@
 /** Сколько строк показываем за раз: весь каталог в DOM держать нельзя. */
 const PAGE = 300;
 
-const GENRES = [
-  ['Популярное', null],
-  ['Новости', 'news'],
-  ['Поп', 'pop'],
-  ['Рок', 'rock'],
-  ['Танцевальная', 'dance'],
-  ['Электроника', 'electronic'],
-  ['Джаз', 'jazz'],
-  ['Классика', 'classical'],
-  ['Ретро', 'retro'],
-  ['Хип-хоп', 'hip hop'],
-  ['Шансон', 'chanson'],
-  ['Религия', 'religious'],
-  ['Детям', 'children'],
-  ['Спорт', 'sport'],
-];
+/* Жанры, регионы и правила поиска — в catalog.js: он грузится до этого файла. */
 
 const store = {
   get favorites() {
@@ -164,14 +149,16 @@ function streamCandidates(s) {
   });
 
   /*
-    Прямые адреса ВСЕГДА первые, прокси — только последняя попытка.
+    Прямые адреса всегда раньше прокси, кроме одного случая: адрес, с которого
+    станция уже играла, поднимается наверх ниже. Если это был прокси (оператор
+    режет порт), он и останется первым — он доказал, что работает.
 
     Прокси ходит к вещателю с зарубежных адресов Cloudflare, а многие российские
     станции такие запросы не отдают. Поэтому рабочий прямой адрес не должен
-    уступать прокси ни при каких условиях: раньше здесь стояли правила «через
-    прокси первым» для нестандартных портов и залипающий флаг preferProxy,
-    и вместе они уводили через Cloudflare вообще всё — включая станции, которые
-    прекрасно играли напрямую.
+    уступать прокси без причины: раньше здесь стояли правила «через прокси
+    первым» для нестандартных портов и залипающий флаг preferProxy, и вместе они
+    уводили через Cloudflare вообще всё — включая станции, которые прекрасно
+    играли напрямую.
   */
   for (const e of entries) push(e.direct, false);
   for (const e of entries) push(e.proxied, true);
@@ -190,6 +177,9 @@ function streamCandidates(s) {
 function rememberGoodRoute(station, url) {
   if (!station || !url) return;
   const map = store.goodRoute;
+  // Удаляем перед записью: порядок ключей в объекте — это порядок вставки,
+  // и тогда вытеснение ниже выбрасывает самый давно использованный адрес.
+  delete map[idOf(station)];
   map[idOf(station)] = url;
   const keys = Object.keys(map);
   if (keys.length > 200) delete map[keys[0]];
@@ -217,14 +207,6 @@ function diagnoseStreamError(s, code) {
   }
   if (code === 1) return 'Загрузка потока прервана';
   return 'Станция недоступна';
-}
-
-function matches(s, text, tag) {
-  const byTag = !tag || (s.tags || '').toLowerCase().includes(tag.toLowerCase());
-  if (!byTag) return false;
-  if (!text) return true;
-  const t = text.toLowerCase();
-  return s.name.toLowerCase().includes(t) || (s.tags || '').toLowerCase().includes(t);
 }
 
 /* ---------- логотип с перебором источников ---------- */
@@ -261,6 +243,9 @@ function loadArt(box) {
 }
 
 function paintArt(box, station) {
+  // Та же станция — не перерисовываем: иначе на каждое play/pause обложка
+  // мигала заглушкой, пока грузился тот же самый логотип.
+  if (box._station && station && idOf(box._station) === idOf(station)) return;
   box._station = station;
   box.innerHTML = svg('radio', 22);
   artObserver.observe(box);
@@ -297,14 +282,14 @@ function rowFor(s) {
   const fav = document.createElement('button');
   fav.className = 'ico fav-btn' + (isFav ? ' on' : '');
   fav.type = 'button';
-  fav.setAttribute('aria-label', isFav ? 'Убрать из избранного' : 'В избранное');
+  fav.setAttribute('aria-label', (isFav ? 'Убрать из избранного: ' : 'В избранное: ') + s.name);
   fav.innerHTML = svg(isFav ? 'heart-filled' : 'heart', 22);
   fav.onclick = (e) => { e.stopPropagation(); toggleFavorite(s); };
 
   const play = document.createElement('button');
   play.className = 'ico play-btn' + (playing ? ' on' : '');
   play.type = 'button';
-  play.setAttribute('aria-label', playing ? 'Пауза' : 'Играть');
+  play.setAttribute('aria-label', (playing ? 'Пауза: ' : 'Играть: ') + s.name);
   play.innerHTML = svg(playing ? 'pause' : 'play', 22);
   // Нажатие на строку текущей станции переключает паузу, а не перезапускает поток.
   // Экран плеера здесь НЕ открывается: в портрете выбор станции только запускает
@@ -314,12 +299,50 @@ function rowFor(s) {
 
   row.append(art, meta, fav, play);
   row._stationId = idOf(s);
+  row._stationName = s.name;
+  // Ссылки и уже нарисованное состояние — чтобы paintRows() не искал их заново
+  // и не трогал строки, у которых ничего не изменилось.
+  row._nameEl = name;
+  row._playEl = play;
+  row._nowState = isCurrent;
+  play._state = playing ? 'pause' : 'play';
   row.onclick = () => tapStation(s);
   return row;
 }
 
+/*
+  Состояние «играет/пауза» меняет одну-две строки, а не список. Раньше на каждое
+  play/pause вызывался render() — 300 новых узлов, 300 новых подписок на
+  IntersectionObserver и рывок на слабом телефоне. Теперь строки только
+  перекрашиваются, и только те, где состояние правда изменилось.
+*/
+function paintRows() {
+  const playing = !audio.paused;
+  const curId = current ? idOf(current) : null;
+  el('list').querySelectorAll('.row').forEach((row) => {
+    const isCurrent = !!curId && row._stationId === curId;
+    if (row._nowState !== isCurrent) {
+      row._nowState = isCurrent;
+      row._nameEl.classList.toggle('now', isCurrent);
+    }
+    const state = playing && isCurrent ? 'pause' : 'play';
+    if (row._playEl._state !== state) {
+      row._playEl._state = state;
+      row._playEl.classList.toggle('on', state === 'pause');
+      row._playEl.innerHTML = svg(state, 22);
+      row._playEl.setAttribute('aria-label', (state === 'pause' ? 'Пауза: ' : 'Играть: ') + row._stationName);
+    }
+  });
+}
+
 function render() {
   const box = el('list');
+  /*
+    Снимаем наблюдение со старых строк: иначе отсоединённые узлы остаются
+    в IntersectionObserver навсегда и тянут за собой станции. Обложка плеера
+    и мини-плеер живут в DOM постоянно, их наблюдение не трогаем.
+  */
+  box.querySelectorAll('.art').forEach((b) => artObserver.unobserve(b));
   box.innerHTML = '';
   if (!list.length) {
     const empty = document.createElement('div');
@@ -357,7 +380,7 @@ function renderPlayer() {
 
   const cover = el('cover');
   if (current) paintArt(cover, current);
-  else cover.innerHTML = svg('radio', 56);
+  else { cover.innerHTML = svg('radio', 56); cover._station = null; }
 
   /*
     Свечение вокруг обложки. Оттенок выводится из имени станции, а не сэмплируется
@@ -417,15 +440,18 @@ function setTab(next) {
 function refresh() {
   const text = (el('query').value || '').trim();
   shown = PAGE;
+  const tag = tagFor(genre);
   if (tab === 'favorites') {
     list = store.favorites;
   } else if (tab === 'region') {
     // Сравниваем по нормализованному названию, иначе «Moscow (Russia)» и «Moscow»
     // считались бы одним регионом в списке, но разными при фильтрации.
-    list = all.filter((s) => normalizeRegion(s.state || '') === region && matches(s, '', genre));
+    list = all.filter((s) => normalizeRegion(s.state || '') === region && matches(s, '', tag));
   } else {
-    const tag = GENRES.find((g) => g[0] === genre)?.[1] ?? null;
-    list = all.filter((s) => matches(s, text, tag));
+    // Жанр, набранный словом, работает как чип: «рок» находит и тег rock.
+    // Чип важнее: если он выбран, слово в поиске остаётся поиском по названию.
+    const wordTag = tag ? null : tagForText(text);
+    list = all.filter((s) => (wordTag ? matches(s, '', wordTag) : matches(s, text, tag)));
   }
   renderCount();
   render();
@@ -508,7 +534,8 @@ function playStation(s, newQueue) {
   candidateIndex = 0;
   loadCandidate();
 
-  render();
+  // Список не изменился — меняется только подсветка текущей строки.
+  paintRows();
   renderPlayer();
   updateMediaSession();
 }
@@ -583,9 +610,6 @@ function regionFromTimezone(regions) {
   } catch { return null; }
 }
 
-/** Убирает уточнения в скобках: «Moscow (Russia)» и «Moscow» — один и тот же регион. */
-const normalizeRegion = (name) => name.replace(/\s*\([^)]*\)\s*$/, '').trim();
-
 function buildRegions() {
   const counts = new Map();
   all.forEach((s) => {
@@ -622,30 +646,37 @@ function buildRegions() {
 /* ---------- запуск ---------- */
 
 function buildChips() {
-  const box = el('chips');
-  // Без очистки каждый выбор жанра дописывал ещё один ряд чипов: после нескольких
-  // нажатий их становилось десятки, и подсветка выбранного терялась среди копий.
-  box.innerHTML = '';
+  /*
+    Один ряд чипов на две вкладки. Раньше жанр можно было выбрать только в
+    «Поиске», но фильтр общий: уйдя в «Регион», пользователь видел отфильтрованный
+    список без единого признака фильтра. Контейнер #region-chips был в разметке
+    и оставался пустым.
+  */
+  [el('chips'), el('region-chips')].forEach((box) => {
+    if (!box) return;
+    // Без очистки каждый выбор жанра дописывал ещё один ряд чипов: после нескольких
+    // нажатий их становилось десятки, и подсветка выбранного терялась среди копий.
+    box.innerHTML = '';
 
-  // «Все» — из референса: активный синий чип в начале ряда. Он же закрывает
-  // дыру в удобстве: раньше снять фильтр жанра можно было только повторным
-  // нажатием на тот же жанр, то есть неявно.
-  const allChip = document.createElement('button');
-  allChip.className = 'chip' + (genre === null ? ' on' : '');
-  allChip.textContent = 'Все';
-  allChip.onclick = () => { genre = null; buildChips(); refresh(); };
-  box.appendChild(allChip);
-
-  GENRES.forEach(([label]) => {
-    const chip = document.createElement('button');
-    chip.className = 'chip' + (genre === label ? ' on' : '');
-    chip.textContent = label;
-    chip.onclick = () => {
-      genre = genre === label ? null : label;
-      buildChips();
-      refresh();
+    const chip = (label, value) => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (genre === value ? ' on' : '');
+      b.type = 'button';
+      b.textContent = label;
+      b.setAttribute('aria-pressed', genre === value);
+      b.onclick = () => {
+        genre = genre === value ? null : value;
+        buildChips();
+        refresh();
+      };
+      box.appendChild(b);
     };
-    box.appendChild(chip);
+
+    // «Все» — из референса: активный синий чип в начале ряда. Он же закрывает
+    // дыру в удобстве: раньше снять фильтр жанра можно было только повторным
+    // нажатием на тот же жанр, то есть неявно.
+    chip('Все', null);
+    GENRES.forEach(([label]) => chip(label, label));
   });
 }
 
@@ -686,16 +717,19 @@ async function boot() {
       candidates = streamCandidates(s);
       candidateIndex = 0;
       if (candidates[0]) audio.src = candidates[0].url;
-      el('status').textContent = 'Нажмите ▶, чтобы продолжить';
+      paintRows();
       renderPlayer();
+      updateMediaSession();
+      // Статус — после renderPlayer(): иначе подсказка сразу затирается словом «Пауза».
+      el('status').textContent = 'Нажмите ▶, чтобы продолжить';
     }
   }
 
   wireMediaSession();
 }
 
-audio.addEventListener('play', () => { render(); renderPlayer(); updateMediaSession(); });
-audio.addEventListener('pause', () => { render(); renderPlayer(); updateMediaSession(); });
+audio.addEventListener('play', () => { paintRows(); renderPlayer(); updateMediaSession(); });
+audio.addEventListener('pause', () => { paintRows(); renderPlayer(); updateMediaSession(); });
 audio.addEventListener('waiting', () => { el('status').textContent = 'Подключение…'; });
 // Строка «В ЭФИРЕ» у полосы уже показывает состояние, поэтому здесь только
 // снимаем служебные сообщения («Подключение…», «Нажмите ▶…»), а не дублируем его.
@@ -839,16 +873,13 @@ function renderMini() {
   paintArt(el('mini-art'), current);
   const t = el('mini-toggle');
   t.innerHTML = svg(audio.paused ? 'play' : 'pause', 22);
-  t.setAttribute('aria-label', audio.paused ? 'Играть' : 'Пауза');
+  t.setAttribute('aria-label', (audio.paused ? 'Играть: ' : 'Пауза: ') + current.name);
 }
 
 /* ---------- привязки ---------- */
 
 el('player-back').onclick = closePlayer;
-el('mini').onclick = openPlayer;
-el('mini').onkeydown = (e) => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPlayer(); }
-};
+el('mini-open').onclick = openPlayer;
 el('mini-toggle').onclick = (e) => { e.stopPropagation(); togglePlay(); };
 el('focus-search').onclick = () => { setTab('search'); el('query').focus(); };
 el('quick-region').onclick = () => setTab('region');
