@@ -458,8 +458,8 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
     flex:0 0 clamp(360px,42vw,480px);min-width:0;display:flex;flex-direction:column;
     background:var(--bg);border-right:1px solid var(--line);
   }
-  .list-pane{flex:1 1 auto;min-height:0;padding:16px 16px 0}
-  .nav{margin:0 16px calc(10px + env(safe-area-inset-bottom))}
+  .list-pane{flex:1 1 auto;min-height:0;padding:calc(16px + env(safe-area-inset-top)) 16px 0 calc(16px + env(safe-area-inset-left))}
+  .nav{margin:0 16px calc(10px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
   .mini{display:none !important}
 
   /* Плеер — постоянная правая колонка, а не оверлей */
@@ -470,7 +470,7 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
        вертикальную границу свечения. Колонку ограничивает .player-body,
        а align-items центрирует её в панели. */
     align-items:center;
-    padding:28px 40px 24px;
+    padding:calc(28px + env(safe-area-inset-top)) calc(40px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) 40px;
   }
   /* Содержимое плеера — одна вертикаль: ограничение ширины живёт на группе,
      а не на панели, иначе сужается фон вместе с градиентом. */
@@ -487,7 +487,7 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
 /* Широкий экран: список в сетку, колонка тянется, плеер закреплён */
 @media (min-width:1024px){
   .side{flex:1 1 auto;border-right:0}
-  .list-pane{padding:18px 20px 0}
+  .list-pane{padding:calc(18px + env(safe-area-inset-top)) 20px 0 calc(20px + env(safe-area-inset-left))}
   /* 300px давали третью колонку на 1440 — имена становились уже (121px),
      чем на 1024 (358px). 360 держит две колонки и читаемое имя. */
   .list{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}
@@ -496,7 +496,7 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
     flex:0 0 400px;
     margin:16px 16px 16px 0;
     border:1px solid var(--glass-line);border-radius:30px;
-    padding:28px 30px 24px;
+    padding:calc(28px + env(safe-area-inset-top)) calc(30px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) 30px;
   }
 }
 
@@ -514,11 +514,12 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
 
 /* Телефон в ландшафте: по высоте тесно, ужимаем вертикаль */
 @media (orientation:landscape) and (max-height:520px){
-  .player-pane{padding:10px 20px 12px}
-  .player-body{gap:10px}
+  .player-pane{padding:10px calc(20px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) 20px}
+  .player-body{gap:10px;justify-content:flex-start}
   /* По высоте, а не по ширине: на 568×320 обложка 232px вытесняла транспорт
-     за экран, и до кнопки «играть» приходилось прокручивать. */
-  .player-pane .cover{width:min(232px,40vh);height:min(232px,40vh)}
+     за экран, и до кнопки «играть» приходилось прокручивать. 36vh — чтобы
+     на 440px обложка не наезжала на шапку при центрировании. */
+  .player-pane .cover{width:min(232px,36vh);height:min(232px,36vh)}
   .player-head{margin-bottom:2px}
   .player-head .label{font-size:12px}
   .player-head .who{font-size:14px}
@@ -532,11 +533,18 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
   .quality{padding:3px 10px}
   .status{display:none}
 
-  .list-pane{padding:8px 14px 0}
+  .list-pane{padding:calc(8px + env(safe-area-inset-top)) 14px 0 calc(14px + env(safe-area-inset-left))}
   .title{font-size:20px}
   .search{margin-top:8px}
   .chips{margin:8px 0 2px}
   .count{display:none}
+}
+
+/* Ландшафт телефона: плееру доставалась вся оставшаяся ширина — на 956px это
+   58%, и обложка терялась в широкой панели. Отдаём списку чуть больше:
+   42vw -> 46vw, плеер уже примерно на 7%, именам в строках свободнее. */
+@media (orientation:landscape) and (max-height:520px) and (min-width:640px){
+  .side{flex:0 0 clamp(360px,46vw,480px)}
 }
 
 /* Широкий десктоп: колонка плеера 1000px+, а обложка и полоса эфира были
