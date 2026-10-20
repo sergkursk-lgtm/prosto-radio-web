@@ -280,26 +280,6 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
 .more:hover{background:var(--surface-2)}
 .more:active{transform:translateY(1px)}
 
-/* ---------- регион ---------- */
-.region-card{
-  flex:0 0 auto;margin-top:12px;
-  background:var(--surface);border:1px solid var(--glass-line);
-  border-radius:var(--r-card);padding:16px;
-  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
-}
-.region-row{display:flex;align-items:center;gap:12px}
-.region-row + .region-row{margin-top:12px}
-.region-pin{
-  width:44px;height:44px;border-radius:var(--r-pill);background:var(--surface-2);
-  display:flex;align-items:center;justify-content:center;color:var(--accent-hi);
-}
-.region-name{font-size:16.5px;font-weight:600}
-.region-note{font-size:12.5px;color:var(--text-dim);margin-top:2px}
-#region-select{
-  flex:1;height:44px;border-radius:14px;border:1px solid var(--glass-line);
-  background:var(--bg);color:var(--text);font-size:15px;padding:0 12px;
-}
-
 /* ================= НИЖНЯЯ НАВИГАЦИЯ: плавающая стеклянная панель ================= */
 .nav{
   flex:0 0 auto;display:flex;align-items:stretch;

@@ -1,9 +1,9 @@
 /*
-  Чистые правила каталога: жанры, регионы, поиск.
+  Чистые правила каталога: жанры и поиск.
 
-  Вынесены из app.js, потому что именно здесь был баг «в регионе жанр искался
-  русской меткой в английских тегах», и потому что это единственная логика
-  приложения, которую можно проверить без браузера (tests/catalog.test.cjs).
+  Вынесены из app.js, потому что именно здесь был баг «жанр искался русской
+  меткой в английских тегах», и потому что это единственная логика приложения,
+  которую можно проверить без браузера (tests/catalog.test.cjs).
   Файл — обычный скрипт: в браузере функции становятся глобальными, в Node
   экспортируются через module.exports в конце.
 */
@@ -39,11 +39,6 @@ function tagForText(text) {
   return hit ? hit[1] : null;
 }
 
-/** Убирает уточнения в скобках: «Moscow (Russia)» и «Moscow» — один и тот же регион. */
-function normalizeRegion(name) {
-  return (name || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
-}
-
 function matches(s, text, tag) {
   const byTag = !tag || (s.tags || '').toLowerCase().includes(tag.toLowerCase());
   if (!byTag) return false;
@@ -53,5 +48,5 @@ function matches(s, text, tag) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { GENRES, tagFor, tagForText, normalizeRegion, matches };
+  module.exports = { GENRES, tagFor, tagForText, matches };
 }

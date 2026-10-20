@@ -13,7 +13,7 @@
 /** Сколько строк показываем за раз: весь каталог в DOM держать нельзя. */
 const PAGE = 300;
 
-/* Жанры, регионы и правила поиска — в catalog.js: он грузится до этого файла. */
+/* Жанры и правила поиска — в catalog.js: он грузится до этого файла. */
 
 const store = {
   get favorites() {
@@ -47,7 +47,6 @@ let current = null;        // играющая станция
 let shown = PAGE;          // сколько строк списка сейчас в документе
 let tab = 'search';
 let genre = null;
-let region = null;
 
 /* ---------- утилиты ---------- */
 
@@ -421,7 +420,6 @@ function renderPlayer() {
 
 function renderCount() {
   if (tab === 'search') el('count').textContent = `станций: ${list.length}`;
-  if (tab === 'region') el('region-count').textContent = `станций: ${list.length}`;
 }
 
 /* ---------- вкладки ---------- */
@@ -432,7 +430,6 @@ function setTab(next) {
     b.classList.toggle('active', b.dataset.tab === next);
   });
   el('tab-search').hidden = next !== 'search';
-  el('tab-region').hidden = next !== 'region';
   el('tab-favorites').hidden = next !== 'favorites';
   refresh();
 }
@@ -443,10 +440,6 @@ function refresh() {
   const tag = tagFor(genre);
   if (tab === 'favorites') {
     list = store.favorites;
-  } else if (tab === 'region') {
-    // Сравниваем по нормализованному названию, иначе «Moscow (Russia)» и «Moscow»
-    // считались бы одним регионом в списке, но разными при фильтрации.
-    list = all.filter((s) => normalizeRegion(s.state || '') === region && matches(s, '', tag));
   } else {
     // Жанр, набранный словом, работает как чип: «рок» находит и тег rock.
     // Чип важнее: если он выбран, слово в поиске остаётся поиском по названию.
@@ -592,92 +585,33 @@ function wireMediaSession() {
   set('stop', () => { audio.pause(); audio.removeAttribute('src'); });
 }
 
-/* ---------- регион ---------- */
-
-/**
- * Регион из названия часового пояса.
- *
- * Браузер знает зону вида «Europe/Moscow» — этого достаточно, чтобы предложить регион
- * без обращения к сети. Если совпадения нет, останется самый наполненный регион каталога.
- */
-function regionFromTimezone(regions) {
-  try {
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-    const city = zone.split('/').pop().replace(/_/g, ' ').toLowerCase();
-    if (!city) return null;
-    const hit = regions.find(([name]) => name.toLowerCase().includes(city));
-    return hit ? hit[0] : null;
-  } catch { return null; }
-}
-
-function buildRegions() {
-  const counts = new Map();
-  all.forEach((s) => {
-    const name = normalizeRegion(s.state || '');
-    if (name) counts.set(name, (counts.get(name) || 0) + 1);
-  });
-  const regions = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-
-  const select = el('region-select');
-  select.innerHTML = '';
-  regions.forEach(([name, n]) => {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = `${name} — ${n}`;
-    select.appendChild(opt);
-  });
-
-  const detected = regionFromTimezone(regions);
-  region = detected || regions[0]?.[0] || null;
-  select.value = region ?? '';
-  el('region-name').textContent = region ?? 'Регион не определён';
-  el('region-note').textContent = detected
-    ? 'определено по часовому поясу'
-    : 'выбрано автоматически';
-
-  select.onchange = () => {
-    region = select.value;
-    el('region-name').textContent = region;
-    el('region-note').textContent = 'выбрано вручную';
-    if (tab === 'region') refresh();
-  };
-}
-
 /* ---------- запуск ---------- */
 
 function buildChips() {
-  /*
-    Один ряд чипов на две вкладки. Раньше жанр можно было выбрать только в
-    «Поиске», но фильтр общий: уйдя в «Регион», пользователь видел отфильтрованный
-    список без единого признака фильтра. Контейнер #region-chips был в разметке
-    и оставался пустым.
-  */
-  [el('chips'), el('region-chips')].forEach((box) => {
-    if (!box) return;
-    // Без очистки каждый выбор жанра дописывал ещё один ряд чипов: после нескольких
-    // нажатий их становилось десятки, и подсветка выбранного терялась среди копий.
-    box.innerHTML = '';
+  const box = el('chips');
+  // Без очистки каждый выбор жанра дописывал ещё один ряд чипов: после нескольких
+  // нажатий их становилось десятки, и подсветка выбранного терялась среди копий.
+  box.innerHTML = '';
 
-    const chip = (label, value) => {
-      const b = document.createElement('button');
-      b.className = 'chip' + (genre === value ? ' on' : '');
-      b.type = 'button';
-      b.textContent = label;
-      b.setAttribute('aria-pressed', genre === value);
-      b.onclick = () => {
-        genre = genre === value ? null : value;
-        buildChips();
-        refresh();
-      };
-      box.appendChild(b);
+  const chip = (label, value) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (genre === value ? ' on' : '');
+    b.type = 'button';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', genre === value);
+    b.onclick = () => {
+      genre = genre === value ? null : value;
+      buildChips();
+      refresh();
     };
+    box.appendChild(b);
+  };
 
-    // «Все» — из референса: активный синий чип в начале ряда. Он же закрывает
-    // дыру в удобстве: раньше снять фильтр жанра можно было только повторным
-    // нажатием на тот же жанр, то есть неявно.
-    chip('Все', null);
-    GENRES.forEach(([label]) => chip(label, label));
-  });
+  // «Все» — из референса: активный синий чип в начале ряда. Он же закрывает
+  // дыру в удобстве: раньше снять фильтр жанра можно было только повторным
+  // нажатием на тот же жанр, то есть неявно.
+  chip('Все', null);
+  GENRES.forEach(([label]) => chip(label, label));
 }
 
 async function boot() {
@@ -692,14 +626,12 @@ async function boot() {
       ...s,
       name: (s.name || '').trim(),
       tags: (s.tags || '').trim(),
-      state: (s.state || '').trim(),
     }));
   } catch (e) {
     el('list').innerHTML = '<div class="empty">Не удалось прочитать каталог станций.</div>';
     return;
   }
 
-  buildRegions();
   refresh();
 
   // Продолжаем с той станции, на которой закрыли
@@ -802,8 +734,6 @@ if ('serviceWorker' in navigator) {
 
 const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/>',
-  pin: '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>',
-  pencil: '<path d="M4 20h4L20 8l-4-4L4 16z"/><path d="M14 6l4 4"/>',
   heart: '<path d="M12 20.2S4.6 15.6 4.6 10.4A4.2 4.2 0 0 1 12 7.5a4.2 4.2 0 0 1 7.4 2.9c0 5.2-7.4 9.8-7.4 9.8z"/>',
   'heart-filled': '<path d="M12 20.2S4.6 15.6 4.6 10.4A4.2 4.2 0 0 1 12 7.5a4.2 4.2 0 0 1 7.4 2.9c0 5.2-7.4 9.8-7.4 9.8z" fill="currentColor"/>',
   play: '<path d="M8.2 5.4v13.2L19 12z" fill="currentColor" stroke="none"/>',
@@ -882,7 +812,6 @@ el('player-back').onclick = closePlayer;
 el('mini-open').onclick = openPlayer;
 el('mini-toggle').onclick = (e) => { e.stopPropagation(); togglePlay(); };
 el('focus-search').onclick = () => { setTab('search'); el('query').focus(); };
-el('quick-region').onclick = () => setTab('region');
 
 el('mute').onclick = () => {
   if (audio.muted || audio.volume === 0) {

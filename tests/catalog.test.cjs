@@ -2,18 +2,18 @@
   Тесты чистых правил каталога: node --test tests/
   Зависимостей нет — catalog.js умеет отдавать себя и в браузер, и в Node.
 
-  Первый тест — тот самый баг: в «Регионе» жанр искался русской меткой («Рок»)
-  в английских тегах каталога («rock»), и станции исчезали.
+  Первый тест — тот самый баг: метка чипа («Рок») — русская, а теги каталога
+  английские («rock»). Сравнение метки с тегом напрямую давало ноль станций.
 */
 const test = require('node:test');
 const assert = require('node:assert');
-const { tagFor, tagForText, normalizeRegion, matches } = require('../catalog.js');
+const { tagFor, tagForText, matches } = require('../catalog.js');
 
 const stations = [
-  { name: 'ROCK FM', state: '', tags: 'classic rock,pop rock,rock' },
-  { name: 'Наше Радио', state: 'Moscow', tags: 'rock' },
-  { name: 'Europa Plus', state: 'Moscow (Russia)', tags: 'pop,dance' },
-  { name: 'Радио Джаз', state: 'Moscow', tags: 'jazz' },
+  { name: 'ROCK FM', tags: 'classic rock,pop rock,rock' },
+  { name: 'Наше Радио', tags: 'rock' },
+  { name: 'Europa Plus', tags: 'pop,dance' },
+  { name: 'Радио Джаз', tags: 'jazz' },
 ];
 
 test('метка чипа превращается в тег каталога', () => {
@@ -24,19 +24,11 @@ test('метка чипа превращается в тег каталога', 
   assert.equal(tagFor('Все'), null);
 });
 
-test('регион + жанр фильтруется по тегу, а не по русской метке', () => {
-  const inMoscow = (s) => normalizeRegion(s.state) === 'Moscow';
+test('жанр фильтруется по тегу, а не по русской метке', () => {
   const byGenre = (s, label) => matches(s, '', tagFor(label));
-  assert.equal(stations.filter((s) => inMoscow(s) && byGenre(s, 'Рок')).length, 1);
-  assert.equal(stations.filter((s) => inMoscow(s) && byGenre(s, 'Джаз')).length, 1);
-  assert.equal(stations.filter((s) => inMoscow(s) && byGenre(s, 'Все')).length, 3);
-});
-
-test('«Moscow (Russia)» и «Moscow» — один регион', () => {
-  assert.equal(normalizeRegion('Moscow (Russia)'), 'Moscow');
-  assert.equal(normalizeRegion('  Moscow  '), 'Moscow');
-  assert.equal(normalizeRegion(''), '');
-  assert.equal(normalizeRegion(undefined), '');
+  assert.equal(stations.filter((s) => byGenre(s, 'Рок')).length, 2);
+  assert.equal(stations.filter((s) => byGenre(s, 'Джаз')).length, 1);
+  assert.equal(stations.filter((s) => byGenre(s, 'Все')).length, 4);
 });
 
 test('жанр словом в поиске работает и на кириллице, и на латинице', () => {
