@@ -488,7 +488,9 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
 @media (min-width:1024px){
   .side{flex:1 1 auto;border-right:0}
   .list-pane{padding:18px 20px 0}
-  .list{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+  /* 300px давали третью колонку на 1440 — имена становились уже (121px),
+     чем на 1024 (358px). 360 держит две колонки и читаемое имя. */
+  .list{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}
 
   .player-pane{
     flex:0 0 400px;
@@ -498,10 +500,25 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
   }
 }
 
+/* Узкая колонка списка: телефон и двухпанельный десктоп до 1024px.
+   В одну строку имя обрезалось почти всегда — на 320px из 300 строк
+   страдало 269. Две строки показывают название целиком там, где оно влезает,
+   и не трогают строки с короткими именами. */
+@media (max-width:1023px){
+  .name{
+    white-space:normal;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+    overflow:hidden;
+  }
+}
+
 /* Телефон в ландшафте: по высоте тесно, ужимаем вертикаль */
 @media (orientation:landscape) and (max-height:520px){
   .player-pane{padding:10px 20px 12px}
   .player-body{gap:10px}
+  /* По высоте, а не по ширине: на 568×320 обложка 232px вытесняла транспорт
+     за экран, и до кнопки «играть» приходилось прокручивать. */
+  .player-pane .cover{width:min(232px,40vh);height:min(232px,40vh)}
   .player-head{margin-bottom:2px}
   .player-head .label{font-size:12px}
   .player-head .who{font-size:14px}
