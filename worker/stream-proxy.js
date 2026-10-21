@@ -14,6 +14,10 @@
  * Безопасность: воркер намеренно не является открытым релеем. Он отказывается
  * ходить в локальную сеть и в служебные диапазоны и сам проверяет каждое
  * перенаправление, прежде чем за ним идти.
+ *
+ * Ещё он умеет отдавать «что играет»: запрос с ?meta=1&url=… читает первый
+ * непустой блок ICY-метаданных и возвращает {"title":"Исполнитель - Трек"}.
+ * Браузерный <audio> эти метаданные не показывает, поэтому их читает воркер.
  */
 
 /*
@@ -103,10 +107,92 @@ function bad(message, status = 400) {
   return new Response(message, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 }
 
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+/*
+  Разбор блока ICY-метаданных. В потоке после каждых metaint байт аудио идёт
+  один байт длины (в шестнадцатибайтовых словах) и сам блок:
+  StreamTitle='Исполнитель - Трек';ДругиеПоля=...
+*/
+export function parseIcyTitle(buf, metaint) {
+  if (!buf || !Number.isFinite(metaint) || metaint <= 0) return null;
+  if (buf.length < metaint + 1) return null;
+  const length = buf[metaint] * 16;
+  if (!length || buf.length < metaint + 1 + length) return null;
+  const text = new TextDecoder('utf-8').decode(buf.subarray(metaint + 1, metaint + 1 + length));
+  const match = text.match(/StreamTitle='([^']*)'/);
+  const title = match ? match[1].trim() : '';
+  return title || null;
+}
+
+/*
+  Дочитываем поток до первого непустого блока метаданных. Пустой первый блок —
+  обычное дело: станция отдаёт StreamTitle='' при подключении, а название
+  приходит следующим блоком. Обычно metaint — 8–32 КБ, то есть 0.5–2 секунды
+  эфира; больше 200 КБ не читаем, чтобы не тянуть мегабайты.
+*/
+async function readIcyTitle(upstream, signal) {
+  const metaint = Number(upstream.headers.get('icy-metaint'));
+  if (!upstream.body || !Number.isFinite(metaint) || metaint <= 0 || metaint > 65536) return null;
+
+  const reader = upstream.body.getReader();
+  const chunks = [];
+  let size = 0;
+  const readMore = async () => {
+    if (signal?.aborted) return false;
+    const { value, done } = await reader.read();
+    if (done) return false;
+    chunks.push(value);
+    size += value.length;
+    return true;
+  };
+  const join = () => {
+    const buf = new Uint8Array(size);
+    let at = 0;
+    for (const chunk of chunks) { buf.set(chunk, at); at += chunk.length; }
+    return buf;
+  };
+
+  try {
+    let offset = 0;
+    for (let block = 0; block < 4; block += 1) {
+      while (size < offset + metaint + 1) {
+        if (!(await readMore())) return null;
+      }
+      const length = join()[offset + metaint] * 16;
+      const end = offset + metaint + 1 + length;
+      while (size < end) {
+        if (!(await readMore())) break;
+      }
+      const buf = join();
+      if (buf.length < end) return null;
+
+      const title = parseIcyTitle(buf.subarray(offset), metaint);
+      if (title) return title;
+
+      offset = end;
+      if (offset > 200000) break;
+    }
+    return null;
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+}
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
     const target = url.searchParams.get('url');
+    const wantsMeta = url.searchParams.get('meta') === '1';
 
     if (!target) return bad('Укажите адрес потока: ?url=');
     if (!originAllowed(request)) return bad('Запрос с чужого сайта', 403);
@@ -126,7 +212,13 @@ export default {
     }
 
     let lastError = 'узел не ответил';
-    const deadline = Date.now() + TOTAL_BUDGET_MS;
+    /*
+      Для трека ждём дольше: блок метаданных идёт после 8–32 КБ эфира, это
+      1–2 секунды, а на медленном узле и больше. Плееру это ждать не страшно —
+      запрос трека не блокирует звук.
+    */
+    const attemptMs = wantsMeta ? 8000 : ATTEMPT_TIMEOUT_MS;
+    const deadline = Date.now() + (wantsMeta ? 15000 : TOTAL_BUDGET_MS);
 
     for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
       if (Date.now() >= deadline) break;
@@ -138,16 +230,18 @@ export default {
         if (left <= 0) break;
 
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), Math.min(ATTEMPT_TIMEOUT_MS, left));
+        const timer = setTimeout(() => controller.abort(), Math.min(attemptMs, left));
 
         try {
           const upstream = await fetch(current.toString(), {
             redirect: 'manual',            // перенаправления проверяем сами
             signal: controller.signal,
             headers: {
-              // Метаданные не запрашиваем: они добавили бы в поток посторонние блоки
+              // Обычному прокси метаданные не нужны: блоки ICY ломают поток.
+              // Для ?meta=1, наоборот, просим их — иначе название трека не узнать.
               'user-agent': 'ProstoRadio/1.0 (+stream-proxy)',
               accept: '*/*',
+              ...(wantsMeta ? { 'icy-metadata': '1' } : {}),
             },
           });
 
@@ -168,6 +262,11 @@ export default {
           }
 
           if (!upstream.ok) { lastError = `станция ответила ${upstream.status}`; break; }
+
+          // Режим «что играет»: отдаём не поток, а первый блок ICY-метаданных
+          if (wantsMeta) {
+            return json({ title: await readIcyTitle(upstream, controller.signal) });
+          }
 
           // Отдаём поток как есть. CORS нужен, чтобы клиент мог читать ответ со своего домена.
           const headers = new Headers();

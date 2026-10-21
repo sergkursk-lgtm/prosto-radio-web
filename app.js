@@ -472,6 +472,7 @@ let candidateIndex = 0;
 */
 let streamError = '';
 let candidateTimer = 0;
+let stallTimer = 0;
 
 /*
   Сколько ждать первых данных, прежде чем попробовать следующий адрес.
@@ -522,6 +523,7 @@ function playStation(s, newQueue) {
   current = s;
   queue = newQueue && newQueue.length ? newQueue : [s];
   store.lastPlayed = idOf(s);
+  stopTrackInfo();
 
   candidates = streamCandidates(s);
   candidateIndex = 0;
@@ -547,6 +549,77 @@ function step(delta) {
   const i = queue.findIndex((s) => idOf(s) === idOf(current));
   const next = queue[(i + delta + queue.length) % queue.length];
   playStation(next, queue);
+}
+
+/* ---------- что играет сейчас ---------- */
+
+/*
+  Название трека приходит внутри самого потока (ICY StreamTitle), но браузерный
+  <audio> его не отдаёт. Читает его воркер: ?meta=1 — он открывает поток с
+  Icy-MetaData: 1 и возвращает первый блок метаданных как JSON. Станции без
+  метаданных просто ничего не присылают, и строка не показывается.
+
+  Опрашиваем раз в 20 секунд, только пока играет: чаще — лишние запросы к
+  станции, реже — трек отстаёт от эфира.
+*/
+const TRACK_POLL_MS = 20000;
+let trackTimer = 0;
+let trackFetch = null;
+
+/** Адрес потока без прокси: воркеру нужен исходный, иначе получится прокси в прокси. */
+function rawStreamUrl(c) {
+  if (!c) return '';
+  if (!c.viaProxy) return c.url;
+  try { return new URL(c.url).searchParams.get('url') || ''; } catch { return ''; }
+}
+
+function stopTrackInfo() {
+  clearTimeout(trackTimer);
+  trackTimer = 0;
+  if (trackFetch) { trackFetch.abort(); trackFetch = null; }
+  const node = el('ptrack');
+  node.hidden = true;
+  node.textContent = '';
+}
+
+function startTrackInfo() {
+  stopTrackInfo();
+  if (!PROXY_BASE) return;
+
+  const tick = async () => {
+    const raw = rawStreamUrl(candidates[candidateIndex]);
+    if (!raw || audio.paused) return;
+
+    const controller = new AbortController();
+    trackFetch = controller;
+    let title = null;
+    try {
+      const res = await fetch(`${PROXY_BASE}?meta=1&url=${encodeURIComponent(raw)}`, {
+        signal: controller.signal,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data?.title === 'string') title = data.title.slice(0, 200);
+      }
+    } catch {
+      // Нет сети, станция без метаданных, запрос отменён — просто не показываем трек
+    } finally {
+      if (trackFetch === controller) trackFetch = null;
+    }
+
+    // Пока шёл запрос, станцию сменили или поставили паузу — ответ уже не нужен
+    if (controller.signal.aborted) return;
+
+    const node = el('ptrack');
+    if (title) { node.textContent = '♪ ' + title; node.hidden = false; }
+    else { node.hidden = true; node.textContent = ''; }
+
+    clearTimeout(trackTimer);
+    if (!audio.paused) trackTimer = setTimeout(tick, TRACK_POLL_MS);
+  };
+
+  // Не в тот же миг, что play(): потоку нужно время открыться и отдать блок
+  trackTimer = setTimeout(tick, 2500);
 }
 
 function toggleFavorite(s) {
@@ -661,7 +734,11 @@ async function boot() {
 }
 
 audio.addEventListener('play', () => { paintRows(); renderPlayer(); updateMediaSession(); });
-audio.addEventListener('pause', () => { paintRows(); renderPlayer(); updateMediaSession(); });
+audio.addEventListener('pause', () => {
+  clearTimeout(stallTimer);
+  stopTrackInfo();
+  paintRows(); renderPlayer(); updateMediaSession();
+});
 audio.addEventListener('waiting', () => { el('status').textContent = 'Подключение…'; });
 // Строка «В ЭФИРЕ» у полосы уже показывает состояние, поэтому здесь только
 // снимаем служебные сообщения («Подключение…», «Нажмите ▶…»), а не дублируем его.
@@ -672,6 +749,7 @@ audio.addEventListener('playing', () => {
   // Запоминаем, какой именно адрес сработал: следующий запуск начнётся с него
   const c = candidates[candidateIndex];
   if (c) rememberGoodRoute(current, c.url);
+  startTrackInfo();
 });
 audio.addEventListener('error', () => {
   const code = audio.error?.code;
@@ -701,8 +779,18 @@ audio.addEventListener('error', () => {
   renderPlayer();
   if (candidates.length > 1) console.warn('источники исчерпаны:', candidates);
 });
-// Поток оборвался — пробуем возобновить, как это делает Android-версия
-audio.addEventListener('stalled', () => { setTimeout(() => audio.play().catch(() => {}), 1500); });
+/*
+  Поток замолчал — пробуем продолжить. Но событие stalled приходит и после
+  паузы: браузер сворачивает сеть, а таймер через 1.5 с звал play() — из-за
+  этого станция сама включалась через 3–5 секунд после паузы. Возобновляем
+  только если паузу не ставили; на паузе таймер гасит обработчик выше.
+*/
+audio.addEventListener('stalled', () => {
+  clearTimeout(stallTimer);
+  stallTimer = setTimeout(() => {
+    if (!audio.paused) audio.play().catch(() => {});
+  }, 1500);
+});
 
 el('play').onclick = togglePlay;
 el('prev').onclick = () => step(-1);

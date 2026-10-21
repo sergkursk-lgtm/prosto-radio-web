@@ -383,6 +383,11 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
   font-size:13.5px;color:var(--text-dim);margin-top:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80vw;
 }
+/* Что играет сейчас: строка появляется, только если станция присылает метаданные */
+.track .ptrack{
+  font-size:13px;color:var(--text);opacity:.85;margin-top:6px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80vw;
+}
 
 /* Полоса эфира: без бегунка — у живого потока нет длительности и перемотки */
 .air{width:100%;max-width:420px;flex:0 0 auto}
@@ -530,7 +535,9 @@ html[data-theme="light"] .theme-toggle .icon-moon{display:flex}
   .transport .hero{width:52px;height:52px;flex:0 0 52px}
   .transport .ico{width:38px;height:38px;flex:0 0 38px}
   .volume{max-width:240px}
-  .quality{padding:3px 10px}
+  /* Битрейт уже в строке под названием («… · MP3 · 192 kbps») — в тесном
+     ландшафте отдельная пилюля только выталкивает низ плеера за экран. */
+  .quality{display:none}
   .status{display:none}
 
   .list-pane{padding:calc(8px + env(safe-area-inset-top)) 14px 0 calc(14px + env(safe-area-inset-left))}
